@@ -94,4 +94,4 @@ spec:
   {{- end }}
   {{- end }}
 {{- end }}{{- /* end: if .enabled */}}
-{{- end }}{{- /* end: range .Values.backend.ingresses */}}
+{{- end }}{{- /* end: range.Values.backend.ingresses */}}
