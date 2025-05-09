@@ -81,6 +81,10 @@ backend:
       annotations:
         # cert-manager.io/cluster-issuer: letsencrypt-prod
         kubernetes.io/ingress.class: addon-http-application-routing
+        nginx.ingress.kubernetes.io/cors-allow-credentials: "true"
+        nginx.ingress.kubernetes.io/cors-allow-methods: "PUT, GET, POST, OPTIONS"
+        nginx.ingress.kubernetes.io/cors-allow-origin: "*"
+        nginx.ingress.kubernetes.io/enable-cors: "true"
       hostname: "sde-backend.e34eabb8a136438fafe9.germanywestcentral.aksapp.io"
       endpoints:
         - default
@@ -145,15 +149,17 @@ backend:
       file.upload-dir=./temp/
       logging.level.org.apache.http=debug
       logging.level.root=debug
-      digital-twins.hostname=https://dataprovider-dtr.e34eabb8a136438fafe9.germanywestcentral.aksapp.io
+      digital-twins.hostname=https://dataprovider-dtr.arena2036-x.de/semantics/registry/semantics/registry
       digital-twins.authentication.url=https://centralidp.e34eabb8a136438fafe9.germanywestcentral.aksapp.io/auth
-      digital-twins.authentication.clientId=default
-      digital-twins.authentication.clientSecret=default
+      digital-twins.registry.uri=/api/v3
+      digital-twins.registry.lookup.uri=/api/v3
+      digital-twins.authentication.clientId=cx-sde
+      digital-twins.authentication.clientSecret=pGUTfDMgoxF2NFcCCqxmlQmmNhE2Z8Yf
       digital-twins.authentication.grantType=client_credentials
-      edc.hostname=https://dataprovider-controlplane.e34eabb8a136438fafe9.germanywestcentral.aksapp.io
+      edc.hostname=https://dataprovider-controlplane.arena2036-x.de
       edc.apiKeyHeader=X-Api-Key
       edc.apiKey=TEST2
-      edc.consumer.hostname=https://dataconsumer-1-controlplane.e34eabb8a136438fafe9.germanywestcentral.aksapp.io
+      edc.consumer.hostname=https://dataconsumer-1-controlplane.arena2036-x.de
       edc.consumer.apikeyheader=X-Api-Key
       edc.consumer.apikey=TEST1
       edc.consumer.datauri=/api/v1/dsp
@@ -173,7 +179,7 @@ backend:
       discovery.clientSecret=default
       discovery.grantType=default
       edc.consumer.protocol.path=/api/v1/dsp
-      edc.consumer.managementpath=/management
+      edc.consumer.managementpath=/data/v2
       edc.managementpath=/management
       partner.pool.hostname=http://localhost:8080
       partner.pool.authentication.url=https://centralidp.e34eabb8a136438fafe9.germanywestcentral.aksapp.io/auth
@@ -185,15 +191,15 @@ backend:
       portal.backend.clientId=Cl2-CX-Portal
       portal.backend.clientSecret=default
       portal.backend.grantType=client_credentials
-      policy.hub.hostname=http://localhost:8080
-      policy.hub.authentication.url=https://centralidp.e34eabb8a136438fafe9.germanywestcentral.aksapp.io/auth
-      policy.hub.clientId=default
-      policy.hub.clientSecret=default
+      policy.hub.hostname=https://policyhub.e34eabb8a136438fafe9.germanywestcentral.aksapp.io/api
+      policy.hub.authentication.url=https://centralidp.e34eabb8a136438fafe9.germanywestcentral.aksapp.io/auth/realms/CX-Central/protocol/openid-connect/token
+      policy.hub.clientId=satest17
+      policy.hub.clientSecret=Bm6RAnL7gTCcagY7noWUa3rZEmw5zvbn
       policy.hub.grantType=client_credentials
       bpdm.provider.edc.dataspace.api=default
       bpdm.provider.bpnl=default
       bpdm.provider.edc.public.api=default
-      bpdm.provider.edc.dsp.api=test
+      bpdm.provider.edc.dsp.api=default
 
 frontend:
   image:
@@ -236,6 +242,10 @@ frontend:
       annotations:
         # cert-manager.io/cluster-issuer: letsencrypt-prod
         kubernetes.io/ingress.class: addon-http-application-routing
+        nginx.ingress.kubernetes.io/cors-allow-credentials: "true"
+        nginx.ingress.kubernetes.io/cors-allow-methods: "PUT, GET, POST, OPTIONS"
+        nginx.ingress.kubernetes.io/cors-allow-origin: "*"
+        nginx.ingress.kubernetes.io/enable-cors: "true"
       hostname: "sde-frontend.e34eabb8a136438fafe9.germanywestcentral.aksapp.io"
       endpoints:
         - default
@@ -279,7 +289,7 @@ frontend:
 
   configuration:
     properties: |-
-      REACT_APP_API_URL=https://sde-backend.e34eabb8a136438fafe9.germanywestcentral.aksapp.io
+      REACT_APP_API_URL=https://sde-backend.e34eabb8a136438fafe9.germanywestcentral.aksapp.io/api
       REACT_APP_KEYCLOAK_URL=https://centralidp.e34eabb8a136438fafe9.germanywestcentral.aksapp.io/auth
       REACT_APP_KEYCLOAK_REALM=CX-Central
       REACT_APP_CLIENT_ID=CX-SDE
