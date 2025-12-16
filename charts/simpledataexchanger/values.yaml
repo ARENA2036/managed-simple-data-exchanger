@@ -1,6 +1,7 @@
 #################################################################################
 # Copyright (c) 2023,2024 T-Systems International GmbH
 # Copyright (c) 2023,2024 Contributors to the Eclipse Foundation
+# Copyright (c) 2025 ARENA2036 e.V.
 #
 # See the NOTICE file(s) distributed with this work for additional
 # information regarding copyright ownership.
@@ -21,8 +22,10 @@
 replicaCount: 1
 
 sdepostgresql:
-# -- PostgreSQL chart configuration
+  # -- PostgreSQL chart configuration
   # Switch to enable or disable the PostgreSQL helm chart
+  image:
+    repository: "bitnamilegacy/postgresql"
   enabled: true
   fullnameOverride: "product-sde-postgres"
   auth:
@@ -77,28 +80,28 @@ backend:
       #   path: /api
   ingresses:
     - enabled: true
-      className:
+      className: ""
       annotations:
-        # cert-manager.io/cluster-issuer: letsencrypt-prod
-        kubernetes.io/ingress.class: addon-http-application-routing
+        cert-manager.io/cluster-issuer:
+        # kubernetes.io/ingress.class:
         nginx.ingress.kubernetes.io/cors-allow-credentials: "true"
         nginx.ingress.kubernetes.io/cors-allow-methods: "PUT, GET, POST, OPTIONS"
-        nginx.ingress.kubernetes.io/cors-allow-origin: "*"
+        nginx.ingress.kubernetes.io/cors-allow-origin: "https://*tx.test"
         nginx.ingress.kubernetes.io/enable-cors: "true"
-      hostname: "sde-backend.e34eabb8a136438fafe9.germanywestcentral.aksapp.io"
+      hostname: "sde-backend.tx.test"
       endpoints:
         - default
       tls:
         enabled: true
-        secretName: "sde-backend.tx.test-tls"
+        # secretName: "sde-backend.test-tls"
       # -- If present overwrites the default secret name
-      certManager:
-      # -- If preset enables certificate generation via cert-manager namespace scoped issuer
-        # issuer: "letsencrypt-prod"
-      # -- If preset enables certificate generation via cert-manager cluster-wide issuer
-        clusterIssuer: "letsencrypt-prod"
+      # certManager:
+      #   # -- If preset enables certificate generation via cert-manager namespace scoped issuer
+      #   issuer: "letsencrypt-prod"
+      #   # -- If preset enables certificate generation via cert-manager cluster-wide issuer
+      #   clusterIssuer: "letsencrypt-prod"
       hosts:
-        - sde-backend.e34eabb8a136438fafe9.germanywestcentral.aksapp.io
+        - sde-backend.tx.test
 
   resources:
   # We usually recommend not to specify default resources and to leave this as a conscious
@@ -128,7 +131,7 @@ backend:
   configuration:
     properties: |-
       keycloak.clientid=CX-SDE
-      spring.security.oauth2.resourceserver.jwt.issuer-uri=https://centralidp.e34eabb8a136438fafe9.germanywestcentral.aksapp.io/auth/realms/CX-Central
+      spring.security.oauth2.resourceserver.jwt.issuer-uri=default
       management.endpoint.health.probes.enabled=true
       management.health.readinessstate.enabled=true
       management.health.livenessstate.enabled=true
@@ -149,57 +152,64 @@ backend:
       file.upload-dir=./temp/
       logging.level.org.apache.http=debug
       logging.level.root=debug
-      digital-twins.hostname=https://dataprovider-dtr.arena2036-x.de/semantics/registry/semantics/registry
-      digital-twins.authentication.url=https://centralidp.e34eabb8a136438fafe9.germanywestcentral.aksapp.io/auth
+      digital-twins.hostname=default
+      digital-twins.authentication.url=default
       digital-twins.registry.uri=/api/v3
       digital-twins.registry.lookup.uri=/api/v3
-      digital-twins.authentication.clientId=cx-sde
-      digital-twins.authentication.clientSecret=pGUTfDMgoxF2NFcCCqxmlQmmNhE2Z8Yf
+      digital-twins.authentication.clientId=default
+      digital-twins.authentication.clientSecret=default
       digital-twins.authentication.grantType=client_credentials
-      edc.hostname=https://dataprovider-controlplane.arena2036-x.de
+      edc.hostname=default
+      edc.managementpath=/management
       edc.apiKeyHeader=X-Api-Key
-      edc.apiKey=TEST2
-      edc.consumer.hostname=https://dataconsumer-1-controlplane.arena2036-x.de
+      edc.apiKey=default
+      edc.dsp.endpointpath=/api/v1/dsp
+      edc.dataplane.endpointpath=/api/public
+      edc.managementpath.apiversion=/v3
+      edc.managementpath.apiversion.asset=/v3
+      edc.consumer.hostname=default
       edc.consumer.apikeyheader=X-Api-Key
-      edc.consumer.apikey=TEST1
-      edc.consumer.datauri=/api/v1/dsp
-      dft.hostname=http://localhost:8080
+      edc.consumer.apikey=default
+      edc.consumer.managementpath=/management
+      edc.consumer.protocol.path=/api/v1/dsp
+      dft.hostname=default
       dft.apiKeyHeader=default
       dft.apiKey=default
-      manufacturerId=BPNL00000003AYRE
-      partner.pool.hostname=http://localhost:8080
-      connector.discovery.token-url=https://centralidp.e34eabb8a136438fafe9.germanywestcentral.aksapp.io/auth/realms/CX-Central/protocol/openid-connect/token
-      connector.discovery.clientId=default
-      connector.discovery.clientSecret=default
-      portal.backend.hostname=https://portal-backend.e34eabb8a136438fafe9.germanywestcentral.aksapp.io
-      springdoc.api-docs.path=/api-docs
-      bpndiscovery.hostname=http://localhost:8080
-      discovery.authentication.url=https://centralidp.e34eabb8a136438fafe9.germanywestcentral.aksapp.io/auth
-      discovery.clientId=default
-      discovery.clientSecret=default
-      discovery.grantType=default
-      edc.consumer.protocol.path=/api/v1/dsp
-      edc.consumer.managementpath=/data/v2
-      edc.managementpath=/management
-      partner.pool.hostname=http://localhost:8080
-      partner.pool.authentication.url=https://centralidp.e34eabb8a136438fafe9.germanywestcentral.aksapp.io/auth
+      manufacturerId=default
+      partner.pool.hostname=default
+      partner.pool.authentication.url=default
       partner.pool.clientId=default
       partner.pool.clientSecret=default
-      partner.pool.grantType=default
-      portal.backend.hostname=https://portal.e34eabb8a136438fafe9.germanywestcentral.aksapp.io
-      portal.backend.authentication.url=https://centralidp.e34eabb8a136438fafe9.germanywestcentral.aksapp.io/auth
-      portal.backend.clientId=Cl2-CX-Portal
+      partner.pool.grantType=client_credentials
+      bpdm.provider.edc.dsp.api=default
+      bpdm.provider.bpnl=default
+      portal.backend.hostname=default
+      portal.backend.authentication.url=default
+      portal.backend.clientId=default
       portal.backend.clientSecret=default
       portal.backend.grantType=client_credentials
-      policy.hub.hostname=https://policyhub.e34eabb8a136438fafe9.germanywestcentral.aksapp.io/api
-      policy.hub.authentication.url=https://centralidp.e34eabb8a136438fafe9.germanywestcentral.aksapp.io/auth/realms/CX-Central/protocol/openid-connect/token
-      policy.hub.clientId=satest17
-      policy.hub.clientSecret=Bm6RAnL7gTCcagY7noWUa3rZEmw5zvbn
+      bpndiscovery.hostname=default
+      discovery.authentication.url=default
+      discovery.clientId=sdefault
+      discovery.clientSecret=default
+      discovery.grantType=client_credentials
+      springdoc.api-docs.path=/api-docs
+      policy.hub.hostname=default
+      policy.hub.authentication.url=default
+      policy.hub.clientId=default
+      policy.hub.clientSecret=default
       policy.hub.grantType=client_credentials
-      bpdm.provider.edc.dataspace.api=default
+      management.endpoints.web.exposure.include=*
+      management.endpoint.health.show-details=always
+      management.metrics.export.prometheus.enabled=true
+      management.endpoint.prometheus.enabled=true
+      spring.sleuth.sampler.probability=1.0
+      spring.zipkin.base-url=http://localhost:9411/
+      spring.zipkin.sender.type=web
+      spring.application.name=springboot-monitoring-SDE
+      #bpdm.provider.edc.dataspace.api=default
       bpdm.provider.bpnl=default
-      bpdm.provider.edc.public.api=default
-      bpdm.provider.edc.dsp.api=default
+      #bpdm.provider.edc.public.api=default
 
 frontend:
   image:
@@ -238,29 +248,30 @@ frontend:
         path: /
   ingresses:
     - enabled: true
-      className:
+      className: ""
       annotations:
-        # cert-manager.io/cluster-issuer: letsencrypt-prod
-        kubernetes.io/ingress.class: addon-http-application-routing
-        nginx.ingress.kubernetes.io/cors-allow-credentials: "true"
-        nginx.ingress.kubernetes.io/cors-allow-methods: "PUT, GET, POST, OPTIONS"
-        nginx.ingress.kubernetes.io/cors-allow-origin: "*"
-        nginx.ingress.kubernetes.io/enable-cors: "true"
-      hostname: "sde-frontend.e34eabb8a136438fafe9.germanywestcentral.aksapp.io"
+        cert-manager.io/cluster-issuer:
+        # kubernetes.io/ingress.class:
+        # kubernetes.io/ingress.class: addon-http-application-routing
+        # nginx.ingress.kubernetes.io/cors-allow-credentials: "true"
+        # nginx.ingress.kubernetes.io/cors-allow-methods: "PUT, GET, POST, OPTIONS"
+        # nginx.ingress.kubernetes.io/cors-allow-origin: "*"
+        # nginx.ingress.kubernetes.io/enable-cors: "true"
+      hostname: "sde.tx.test"
       endpoints:
         - default
 
       tls:
         enabled: true
-        secretName: "sde-frontend.tx.test-tls"
+        # secretName: "sde-frontend.test-tls"
           # -- If present overwrites the default secret name
-      certManager:
-          # -- If preset enables certificate generation via cert-manager namespace scoped issuer
-        # issuer: "letsencrypt-prod"
-          # -- If preset enables certificate generation via cert-manager cluster-wide issuer
-        clusterIssuer: "letsencrypt-prod"
+      # certManager:
+      #   # -- If preset enables certificate generation via cert-manager namespace scoped issuer
+      #   # issuer: "letsencrypt-prod"
+      #     # -- If preset enables certificate generation via cert-manager cluster-wide issuer
+      #   clusterIssuer: "letsencrypt-prod"
       hosts:
-        - sde-frontend.e34eabb8a136438fafe9.germanywestcentral.aksapp.io
+        - sde.tx.test
 
   resources:
   # We usually recommend not to specify default resources and to leave this as a conscious
@@ -287,14 +298,19 @@ frontend:
 
   affinity: {}
 
-  configuration:
-    properties: |-
-      REACT_APP_API_URL=https://sde-backend.e34eabb8a136438fafe9.germanywestcentral.aksapp.io/api
-      REACT_APP_KEYCLOAK_URL=https://centralidp.e34eabb8a136438fafe9.germanywestcentral.aksapp.io/auth
-      REACT_APP_KEYCLOAK_REALM=CX-Central
-      REACT_APP_CLIENT_ID=CX-SDE
-      REACT_APP_FILESIZE=100MiB
-      REACT_APP_DEFAULT_COMPANY_BPN=BPNL00000003CRHK
+  env:
+    - name: REACT_APP_API_URL
+      value: https://sde-backend.tx.test/api
+    - name: REACT_APP_KEYCLOAK_URL
+      value: https://centralidp.tx.test/auth
+    - name: REACT_APP_KEYCLOAK_REALM
+      value: CX-Central
+    - name: REACT_APP_CLIENT_ID
+      value: CX-SDE
+    - name: REACT_APP_FILESIZE
+      value: "104857600"
+    - name: REACT_APP_DEFAULT_COMPANY_BPN
+      value: 
 
 serviceAccount:
   # Specifies whether a service account should be created

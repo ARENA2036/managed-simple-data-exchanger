@@ -1,6 +1,7 @@
 #################################################################################
 # Copyright (c) 2023 T-Systems International GmbH
 # Copyright (c) 2023 Contributors to the Eclipse Foundation
+# Copyright (c) 2025 ARENA2036 e.V.
 #
 # See the NOTICE file(s) distributed with this work for additional
 # information regarding copyright ownership.
@@ -77,17 +78,17 @@ spec:
                   name: {{ include "sde.fullname" . }}-sdepostgresql
                   key: "password"
             {{- end }}    
-          envFrom:
-            - configMapRef:
-                name: {{ include "sde.fullname" . }}-backend-configmap
+          # envFrom:
+          #   - configMapRef:
+          #       name: {{ include "sde.fullname" . }}-backend-configmap
           volumeMounts:
             - name: configuration
-              mountPath: /app/configuration.properties
-              subPath: configuration.properties
+              mountPath: /home/sdeuser/sdeapp/application.properties
+              subPath: application.properties
       volumes:
         - name: configuration
           configMap:
             name: {{ include "sde.fullname" . }}-backend-configmap
             items:
-              - key: configuration.properties
-                path: configuration.properties
+              - key: application.properties
+                path: application.properties
