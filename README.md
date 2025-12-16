@@ -28,7 +28,7 @@ To install the chart with the release name portal:
 
 | Repository                                         | Name       | Version  |
 |--------------------------------------------------- |------------|--------- |
-| `https://charts.bitnami.com/bitnami`               | postgresql | 12.12.10 |                     
+| `https://charts.bitnami.com/bitnami`               | postgresql | 12.x.x |                     
 	
 ### Licenses
 For used licenses, please see the [NOTICE](https://github.com/eclipse-tractusx/managed-simple-data-exchanger/blob/main/NOTICE.md).
