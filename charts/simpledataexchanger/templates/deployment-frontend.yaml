@@ -1,6 +1,7 @@
 #################################################################################
 # Copyright (c) 2023 T-Systems International GmbH
 # Copyright (c) 2023 Contributors to the Eclipse Foundation
+# Copyright (c) 2025 ARENA2036 e.V.
 #
 # See the NOTICE file(s) distributed with this work for additional
 # information regarding copyright ownership.
@@ -52,18 +53,6 @@ spec:
           image: "{{ .Values.frontend.image.repository }}:{{ .Values.frontend.image.tag | default .Chart.AppVersion }}"
           imagePullPolicy: {{ .Values.frontend.image.pullPolicy }}
           ports:
-          - containerPort: {{ .Values.frontend.portContainer }}  
-          envFrom:
-            - configMapRef:
-                name: {{ include "sde.fullname" . }}-frontend-configmap
-          volumeMounts:
-            - name: configuration
-              mountPath: /app/configuration.properties
-              subPath: configuration.properties
-      volumes:
-        - name: configuration
-          configMap:
-            name: {{ include "sde.fullname" . }}-frontend-configmap
-            items:
-              - key: configuration.properties
-                path: configuration.properties
+          - containerPort: {{ .Values.frontend.portContainer }}
+          env:
+            {{- toYaml .Values.frontend.env | nindent 12 }}
