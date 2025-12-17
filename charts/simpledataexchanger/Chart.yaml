@@ -22,7 +22,6 @@
 apiVersion: v2
 name: sde
 description: A Helm chart for simple data exchanger
-description: A Helm chart for simple data exchanger
 # A chart can be either an 'application' or a 'library' chart.
 # Application charts are a collection of templates that can be packaged into versioned archives
 # to be deployed.
@@ -47,5 +46,4 @@ dependencies:
     name: postgresql
     alias: sdepostgresql
     repository: https://charts.bitnami.com/bitnami
-    version: 12.x.x
     version: 12.x.x
