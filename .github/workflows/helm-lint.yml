@@ -21,28 +21,16 @@
 name:  SDE Lint and Test Charts
 
 on:
-
   push:
     branches:
       - main
     paths:
       - 'charts/**'
 
-  push:
-    branches:
-      - main
-    paths:
-      - 'charts/**'
-
-  pull_request:
   pull_request:
       paths:
         - charts/**
 
-        - charts/**
-
-       
-  workflow_dispatch:
   workflow_dispatch:
       inputs:
         node_image:
@@ -66,13 +54,6 @@ on:
           default: '0.1.8'
           required: false
           type: string
-        helm_version:
-          description: 'helm version to test (default = latest)'
-          default: 'latest'
-          required: false
-          type: string
-
-
 
 jobs:
     lint-test:
@@ -109,13 +90,6 @@ jobs:
             if [[ -n "$changed" ]]; then
               echo "CHART_CHANGED=true" >> $GITHUB_ENV
             fi
-        - name: Run chart-testing (list-changed)
-          id: list-changed
-          run: |
-            changed=$(ct list-changed --target-branch ${{ github.event.repository.default_branch }})
-            if [[ -n "$changed" ]]; then
-              echo "CHART_CHANGED=true" >> $GITHUB_ENV
-            fi
 
         # run chart linting 
         - name: Run chart-testing (lint)
@@ -124,26 +98,6 @@ jobs:
         - name: Run chart-testing (install)
           run: ct install --charts charts/simpledataexchanger
           if: github.event_name != 'pull_request' || steps.list-changed.outputs.changed == 'true'
-        # run chart linting 
-        - name: Run chart-testing (lint)
-          run: ct lint --validate-maintainers=false --target-branch ${{ github.event.repository.default_branch }}
-
-        - name: Run chart-testing (install)
-          run: ct install --charts charts/simpledataexchanger
-          if: github.event_name != 'pull_request' || steps.list-changed.outputs.changed == 'true'
-
-        # Upgrade the released chart version with the locally available chart
-        # default value for event_name != workflow_dispatch
-        - name: Run helm upgrade
-          run: |
-            helm repo add bitnami https://charts.bitnami.com/bitnami
-            helm repo add tractusx-dev https://eclipse-tractusx.github.io/charts/dev
-            helm install simpledataexchanger tractusx-dev/sde --version ${{ github.event.inputs.upgrade_from || '0.1.8' }}
-            helm dependency update charts/simpledataexchanger
-            helm upgrade simpledataexchanger charts/simpledataexchanger
-          if: github.event_name != 'pull_request' || steps.list-changed.outputs.changed == 'true'
-
-
 
         # Upgrade the released chart version with the locally available chart
         # default value for event_name != workflow_dispatch
