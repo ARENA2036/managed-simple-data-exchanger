@@ -30,6 +30,7 @@ sdepostgresql:
   fullnameOverride: "product-sde-postgres"
   auth:
     postgresPassword: ""
+    postgresPassword: ""
     username: "sdeuser"
     password: "password"
     database: "sdedb"

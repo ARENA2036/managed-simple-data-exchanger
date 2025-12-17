@@ -1,6 +1,8 @@
 #################################################################################
 # Copyright (c) 2023,2024 T-Systems International GmbH
 # Copyright (c) 2023,2024 Contributors to the Eclipse Foundation
+# Copyright (c) 2023,2024 T-Systems International GmbH
+# Copyright (c) 2023,2024 Contributors to the Eclipse Foundation
 #
 # See the NOTICE file(s) distributed with this work for additional
 # information regarding copyright ownership.
@@ -19,6 +21,7 @@
 ################################################################################
 apiVersion: v2
 name: sde
+description: A Helm chart for simple data exchanger
 description: A Helm chart for simple data exchanger
 # A chart can be either an 'application' or a 'library' chart.
 # Application charts are a collection of templates that can be packaged into versioned archives
@@ -44,4 +47,5 @@ dependencies:
     name: postgresql
     alias: sdepostgresql
     repository: https://charts.bitnami.com/bitnami
+    version: 12.x.x
     version: 12.x.x

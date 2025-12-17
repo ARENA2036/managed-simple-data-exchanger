@@ -17,6 +17,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 ################################################################################
+<<<<<<<< HEAD:.github/workflows/dependabot.yml
 ---
 version: 2
 updates:
@@ -26,3 +27,15 @@ updates:
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 5
+========
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "sde.fullname" . }}-frontend-configmap
+  namespace: {{ .Release.Namespace | default "default" | quote }}
+  labels:
+    {{- include "sde.frontend.labels" . | nindent 4 }}
+data:
+  configuration.properties: |-
+    {{- .Values.frontend.configuration.properties | nindent 4 }}
+>>>>>>>> 50cf7cb22939afb1cfcd5c0cb39fd07fd41f395b:charts/simpledataexchanger/templates/configmap-frontend.yaml
