@@ -30,7 +30,6 @@ sdepostgresql:
   fullnameOverride: "product-sde-postgres"
   auth:
     postgresPassword: ""
-    postgresPassword: ""
     username: "sdeuser"
     password: "password"
     database: "sdedb"
@@ -311,7 +310,7 @@ frontend:
     - name: REACT_APP_FILESIZE
       value: "104857600"
     - name: REACT_APP_DEFAULT_COMPANY_BPN
-      value: 
+      value: "<DEFAULT_BPN>"
 
 serviceAccount:
   # Specifies whether a service account should be created
