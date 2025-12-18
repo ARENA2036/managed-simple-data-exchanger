@@ -26,14 +26,12 @@ metadata:
   namespace: {{ .Release.Namespace | default "default" | quote }}
   labels:
     {{- include "sde.backend.labels" . | nindent 4 }}
-    {{- include "sde.backend.labels" . | nindent 4 }}
 spec:
   {{- if not .Values.backend.autoscaling.enabled }}
   replicas: {{ .Values.replicaCount }}
   {{- end }}
   selector:
     matchLabels:
-      {{- include "sde.backend.selectorLabels" . | nindent 6 }}
       {{- include "sde.backend.selectorLabels" . | nindent 6 }}
   template:
     metadata:
@@ -42,7 +40,6 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       labels:
-        {{- include "sde.backend.selectorLabels" . | nindent 8 }}
         {{- include "sde.backend.selectorLabels" . | nindent 8 }}
     spec:
       {{- with .Values.backend.imagePullSecrets }}
@@ -65,19 +62,8 @@ spec:
             - name: SPRING_DATASOURCE_USERNAME
               value: {{ .Values.sdepostgresql.auth.username | required ".Values.sdepostgresql.auth.username is required" | quote }}
             {{- if .Values.sdepostgresql.fullnameOverride }}
-            - name: SPRING_DATASOURCE_USERNAME
-              value: {{ .Values.sdepostgresql.auth.username | required ".Values.sdepostgresql.auth.username is required" | quote }}
-            {{- if .Values.sdepostgresql.fullnameOverride }}
             - name: SPRING_DATASOURCE_URL
               value: "jdbc:postgresql://{{ .Values.sdepostgresql.fullnameOverride }}:{{ .Values.sdepostgresql.auth.port }}/{{ .Values.sdepostgresql.auth.database }}"
-            - name: SPRING_DATASOURCE_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: {{ .Values.sdepostgresql.fullnameOverride }}
-                  key: "password"
-            {{- else }}
-            - name: SPRING_DATASOURCE_URL
-              value: "jdbc:postgresql://{{ include "sde.fullname" . }}-sdepostgresql:{{ .Values.sdepostgresql.auth.port }}/{{ .Values.sdepostgresql.auth.database }}"
             - name: SPRING_DATASOURCE_PASSWORD
               valueFrom:
                 secretKeyRef:
