@@ -25,7 +25,10 @@ sdepostgresql:
   # -- PostgreSQL chart configuration
   # Switch to enable or disable the PostgreSQL helm chart
   image:
-    repository: "bitnamilegacy/postgresql"
+    # -- PostgreSQL image registry
+    registry: docker.io
+    # -- PostgreSQL image repository
+    repository: postgres
   enabled: true
   fullnameOverride: "product-sde-postgres"
   auth:
@@ -130,7 +133,7 @@ backend:
 
   configuration:
     properties: |-
-      keycloak.clientid=CX-SDE
+      keycloak.clientid=default
       spring.security.oauth2.resourceserver.jwt.issuer-uri=default
       management.endpoint.health.probes.enabled=true
       management.health.readinessstate.enabled=true
