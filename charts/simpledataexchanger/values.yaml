@@ -29,6 +29,8 @@ sdepostgresql:
     registry: docker.io
     # -- PostgreSQL image repository
     repository: postgres
+    tag: ""
+    pullSecrets: []
   enabled: true
   fullnameOverride: "product-sde-postgres"
   auth:
@@ -45,16 +47,12 @@ backend:
     pullPolicy: Always
   # Overrides the image tag whose default is the chart appVersion.
     tag: ""
-
-  imagePullSecrets: []
-
+    imagePullSecrets: []
+    
   nameOverride: ""
-
   fullnameOverride: ""
   portContainer: 8080
-
   podAnnotations: {}
-
   podSecurityContext: {}
 
   securityContext:
@@ -220,7 +218,8 @@ frontend:
     pullPolicy: Always
       # Overrides the image tag whose default is the chart appVersion.
     tag: ""
-  imagePullSecrets: []
+    imagePullSecrets: []
+    
   nameOverride: ""
   fullnameOverride: ""
   portContainer: 8080
