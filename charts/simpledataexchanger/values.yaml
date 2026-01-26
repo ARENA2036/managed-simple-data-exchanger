@@ -48,7 +48,6 @@ backend:
   # Overrides the image tag whose default is the chart appVersion.
     tag: ""
     imagePullSecrets: []
-    
   nameOverride: ""
   fullnameOverride: ""
   portContainer: 8080
@@ -219,7 +218,6 @@ frontend:
       # Overrides the image tag whose default is the chart appVersion.
     tag: ""
     imagePullSecrets: []
-    
   nameOverride: ""
   fullnameOverride: ""
   portContainer: 8080
