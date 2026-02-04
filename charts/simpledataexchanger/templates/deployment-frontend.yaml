@@ -53,6 +53,6 @@ spec:
             runAsUser: {{ .Values.frontend.securityContext.runAsUser }}
             {{- toYaml .Values.frontend.securityContext | nindent 12 }}
           ports:
-            - containerPort: {{ .Values.frontend.portContainer }}
+          - containerPort: {{ .Values.frontend.portContainer }}
           env:
             {{- toYaml .Values.frontend.env | nindent 12 }}
