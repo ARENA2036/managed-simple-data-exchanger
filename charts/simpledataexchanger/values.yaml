@@ -29,8 +29,6 @@ sdepostgresql:
     registry: docker.io
     # -- PostgreSQL image repository
     repository: postgres
-    tag: ""
-    pullSecrets: []
   enabled: true
   fullnameOverride: "product-sde-postgres"
   auth:
