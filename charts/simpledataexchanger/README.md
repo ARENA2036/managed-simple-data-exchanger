@@ -71,11 +71,11 @@ A Helm chart for simple data exchanger
 | frontend.env[2].name | string | `"REACT_APP_KEYCLOAK_REALM"` |  |
 | frontend.env[2].value | string | `"CX-Central"` |  |
 | frontend.env[3].name | string | `"REACT_APP_CLIENT_ID"` |  |
-| frontend.env[3].value | string | `"CX-SDE"` |  |
+| frontend.env[3].value | string | `"default"` |  |
 | frontend.env[4].name | string | `"REACT_APP_FILESIZE"` |  |
 | frontend.env[4].value | string | `"104857600"` |  |
 | frontend.env[5].name | string | `"REACT_APP_DEFAULT_COMPANY_BPN"` |  |
-| frontend.env[5].value | string | `nil` |  |
+| frontend.env[5].value | string | `"<DEFAULT_BPN>"` |  |
 | frontend.fullnameOverride | string | `""` |  |
 | frontend.image.pullPolicy | string | `"Always"` |  |
 | frontend.image.repository | string | `"tractusx/managed-simple-data-exchanger-frontend"` |  |
@@ -116,7 +116,9 @@ A Helm chart for simple data exchanger
 | sdepostgresql.auth.username | string | `"sdeuser"` |  |
 | sdepostgresql.enabled | bool | `true` |  |
 | sdepostgresql.fullnameOverride | string | `"product-sde-postgres"` |  |
-| sdepostgresql.image | object | `{"repository":"bitnamilegacy/postgresql"}` | PostgreSQL chart configuration Switch to enable or disable the PostgreSQL helm chart |
+| sdepostgresql.image | object | `{"registry":"docker.io","repository":"postgres"}` | PostgreSQL chart configuration Switch to enable or disable the PostgreSQL helm chart |
+| sdepostgresql.image.registry | string | `"docker.io"` | PostgreSQL image registry |
+| sdepostgresql.image.repository | string | `"postgres"` | PostgreSQL image repository |
 | serviceAccount.annotations | object | `{}` |  |
 | serviceAccount.create | bool | `true` |  |
 | serviceAccount.name | string | `""` |  |

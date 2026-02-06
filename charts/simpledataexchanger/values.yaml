@@ -309,7 +309,7 @@ frontend:
     - name: REACT_APP_KEYCLOAK_REALM
       value: CX-Central
     - name: REACT_APP_CLIENT_ID
-      value: CX-SDE
+      value: default
     - name: REACT_APP_FILESIZE
       value: "104857600"
     - name: REACT_APP_DEFAULT_COMPANY_BPN
