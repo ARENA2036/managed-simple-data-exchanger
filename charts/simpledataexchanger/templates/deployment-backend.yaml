@@ -42,20 +42,21 @@ spec:
       labels:
         {{- include "sde.backend.selectorLabels" . | nindent 8 }}
     spec:
-      {{- with .Values.backend.imagePullSecrets }}
-      imagePullSecrets:
-        {{- toYaml . | nindent 8 }}
-      {{- end }}
-      automountServiceAccountToken: false
+      serviceAccountName: {{ include "sde.serviceAccountName" . }}
       securityContext:
         {{- toYaml .Values.backend.podSecurityContext | nindent 8 }}
+      {{- if .Values.backend.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml .Values.backend.imagePullSecrets | nindent 8 }}
+      {{- end }}
+      automountServiceAccountToken: false
       containers:
         - name: {{ .Chart.Name }}
+          image: "{{ .Values.backend.image.repository }}:{{ .Values.backend.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.backend.image.pullPolicy }}
           securityContext:
             runAsUser: {{ .Values.backend.securityContext.runAsUser }}
             {{- toYaml .Values.backend.securityContext | nindent 12 }}
-          image: "{{ .Values.backend.image.repository }}:{{ .Values.backend.image.tag | default .Chart.AppVersion }}"
-          imagePullPolicy: {{ .Values.backend.image.pullPolicy }}
           ports:
           - containerPort: {{ .Values.backend.portContainer }}
           env:
