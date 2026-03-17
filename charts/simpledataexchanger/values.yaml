@@ -63,6 +63,7 @@ backend:
       drop:
         - ALL
     runAsNonRoot: true
+    readOnlyRootFilesystem: true
     runAsUser: 1001
 
   service:
@@ -234,6 +235,7 @@ frontend:
       drop:
         - ALL
     runAsNonRoot: true
+    readOnlyRootFilesystem: true
     runAsUser: 101
 
   service:
