@@ -56,3 +56,14 @@ spec:
           - containerPort: {{ .Values.frontend.portContainer }}
           env:
             {{- toYaml .Values.frontend.env | nindent 12 }}
+          volumeMounts:
+            - name: configuration
+              mountPath: /usr/share/nginx/html/env-config.js
+              subPath: env-config.js
+      volumes:
+        - name: configuration
+          configMap:
+            name: {{ include "sde.fullname" . }}-frontend-configmap
+            items:
+              - key: env-config.js
+                path: env-config.js
