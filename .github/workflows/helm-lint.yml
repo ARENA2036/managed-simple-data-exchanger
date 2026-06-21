@@ -102,12 +102,8 @@ jobs:
         # default value for event_name != workflow_dispatch
         - name: Run helm upgrade
           run: |
-            helm repo add bitnami https://charts.bitnami.com/bitnami
             helm repo add tractusx-dev https://eclipse-tractusx.github.io/charts/dev
             helm install simpledataexchanger tractusx-dev/sde --version ${{ github.event.inputs.upgrade_from || '0.1.8' }}
             helm dependency update charts/simpledataexchanger
             helm upgrade simpledataexchanger charts/simpledataexchanger
           if: github.event_name != 'pull_request' || steps.list-changed.outputs.changed == 'true'
-
-
-

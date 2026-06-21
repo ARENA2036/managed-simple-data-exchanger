@@ -25,13 +25,16 @@ sdepostgresql:
   # -- PostgreSQL chart configuration
   # Switch to enable or disable the PostgreSQL helm chart
   image:
-    repository: "bitnamilegacy/postgresql"
+    # -- PostgreSQL image registry
+    registry: docker.io
+    # -- PostgreSQL image repository
+    repository: postgres
   enabled: true
   fullnameOverride: "product-sde-postgres"
   auth:
     postgresPassword: ""
     username: "sdeuser"
-    password: "password"
+    password: ""
     database: "sdedb"
     port: 5432
     existingSecret: ""
@@ -92,7 +95,7 @@ backend:
       endpoints:
         - default
       tls:
-        enabled: true
+        enabled: false
         # secretName: "sde-backend.test-tls"
       # -- If present overwrites the default secret name
       # certManager:
@@ -100,8 +103,6 @@ backend:
       #   issuer: "letsencrypt-prod"
       #   # -- If preset enables certificate generation via cert-manager cluster-wide issuer
       #   clusterIssuer: "letsencrypt-prod"
-      hosts:
-        - sde-backend.tx.test
 
   resources:
   # We usually recommend not to specify default resources and to leave this as a conscious
@@ -130,7 +131,7 @@ backend:
 
   configuration:
     properties: |-
-      keycloak.clientid=CX-SDE
+      keycloak.clientid=default
       spring.security.oauth2.resourceserver.jwt.issuer-uri=default
       management.endpoint.health.probes.enabled=true
       management.health.readinessstate.enabled=true
@@ -260,7 +261,7 @@ frontend:
         - default
 
       tls:
-        enabled: true
+        enabled: false
         # secretName: "sde-frontend.test-tls"
           # -- If present overwrites the default secret name
       # certManager:
@@ -268,8 +269,6 @@ frontend:
       #   # issuer: "letsencrypt-prod"
       #     # -- If preset enables certificate generation via cert-manager cluster-wide issuer
       #   clusterIssuer: "letsencrypt-prod"
-      hosts:
-        - sde.tx.test
 
   resources:
   # We usually recommend not to specify default resources and to leave this as a conscious
@@ -304,11 +303,11 @@ frontend:
     - name: REACT_APP_KEYCLOAK_REALM
       value: CX-Central
     - name: REACT_APP_CLIENT_ID
-      value: CX-SDE
+      value: default
     - name: REACT_APP_FILESIZE
       value: "104857600"
     - name: REACT_APP_DEFAULT_COMPANY_BPN
-      value: 
+      value: default
 
 serviceAccount:
   # Specifies whether a service account should be created

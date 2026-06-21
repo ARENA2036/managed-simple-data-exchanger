@@ -28,7 +28,7 @@ To install the chart with the release name portal:
 
 | Repository                                         | Name       | Version  |
 |--------------------------------------------------- |------------|--------- |
-| `oci://registry-1.docker.io/cloudpirates`          | postgresql | 0.11.0   |                     
+| https://github.com/CloudPirates-io/helm-charts     | postgres   | 0.11.0   |                     
 	
 ### Licenses
 For used licenses, please see the [NOTICE](https://github.com/eclipse-tractusx/managed-simple-data-exchanger/blob/main/NOTICE.md).

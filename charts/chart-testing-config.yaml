@@ -19,4 +19,4 @@
 ################################################################################
 validate-maintainers: false
 chart-repos:
-  - bitnami=https://charts.bitnami.com/bitnami
+  - cloudpirates=https://github.com/CloudPirates-io/helm-charts
