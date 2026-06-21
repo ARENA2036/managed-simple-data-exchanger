@@ -82,7 +82,7 @@ backend:
     - enabled: true
       className: ""
       annotations:
-        cert-manager.io/cluster-issuer:
+        # cert-manager.io/cluster-issuer:
         # kubernetes.io/ingress.class:
         nginx.ingress.kubernetes.io/cors-allow-credentials: "true"
         nginx.ingress.kubernetes.io/cors-allow-methods: "PUT, GET, POST, OPTIONS"
@@ -137,7 +137,7 @@ backend:
       management.health.livenessstate.enabled=true
       management.endpoints.web.exposure.include=*
       spring.lifecycle.timeout-per-shutdown-phase=30s
-      logging.level.org.springframework.security.web.csrf=DEBUG
+      logging.level.org.springframework.security.web.csrf=INFO
       spring.servlet.multipart.enabled=true
       spring.main.allow-bean-definition-overriding=true
       spring.servlet.multipart.file-size-threshold=2KB
@@ -150,8 +150,8 @@ backend:
       spring.jpa.hibernate.ddl-auto=update
       spring.jpa.open-in-view=false
       file.upload-dir=./temp/
-      logging.level.org.apache.http=debug
-      logging.level.root=debug
+      logging.level.org.apache.http=info
+      logging.level.root=info
       digital-twins.hostname=default
       digital-twins.authentication.url=default
       digital-twins.registry.uri=/api/v3
@@ -182,7 +182,6 @@ backend:
       partner.pool.clientSecret=default
       partner.pool.grantType=client_credentials
       bpdm.provider.edc.dsp.api=default
-      bpdm.provider.bpnl=default
       portal.backend.hostname=default
       portal.backend.authentication.url=default
       portal.backend.clientId=default
@@ -190,7 +189,7 @@ backend:
       portal.backend.grantType=client_credentials
       bpndiscovery.hostname=default
       discovery.authentication.url=default
-      discovery.clientId=sdefault
+      discovery.clientId=default
       discovery.clientSecret=default
       discovery.grantType=client_credentials
       springdoc.api-docs.path=/api-docs
@@ -199,7 +198,6 @@ backend:
       policy.hub.clientId=default
       policy.hub.clientSecret=default
       policy.hub.grantType=client_credentials
-      management.endpoints.web.exposure.include=*
       management.endpoint.health.show-details=always
       management.metrics.export.prometheus.enabled=true
       management.endpoint.prometheus.enabled=true
@@ -249,8 +247,8 @@ frontend:
   ingresses:
     - enabled: true
       className: ""
-      annotations:
-        cert-manager.io/cluster-issuer:
+      annotations: {}
+        # cert-manager.io/cluster-issuer: ""
         # kubernetes.io/ingress.class:
         # kubernetes.io/ingress.class: addon-http-application-routing
         # nginx.ingress.kubernetes.io/cors-allow-credentials: "true"
