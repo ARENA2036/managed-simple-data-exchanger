@@ -295,19 +295,14 @@ frontend:
 
   affinity: {}
 
-  env:
-    - name: REACT_APP_API_URL
-      value: https://sde-backend.tx.test/api
-    - name: REACT_APP_KEYCLOAK_URL
-      value: https://centralidp.tx.test/auth
-    - name: REACT_APP_KEYCLOAK_REALM
-      value: CX-Central
-    - name: REACT_APP_CLIENT_ID
-      value: default
-    - name: REACT_APP_FILESIZE
-      value: "104857600"
-    - name: REACT_APP_DEFAULT_COMPANY_BPN
-      value: default
+  configuration:
+    properties: |-
+      REACT_APP_API_URL=
+      REACT_APP_KEYCLOAK_URL=
+      REACT_APP_KEYCLOAK_REALM=
+      REACT_APP_CLIENT_ID=
+      REACT_APP_FILESIZE=
+      REACT_APP_DEFAULT_COMPANY_BPN=
 
 serviceAccount:
   # Specifies whether a service account should be created
