@@ -384,7 +384,7 @@ frontend:
 
   configuration:
     properties: |-
-      REACT_APP_API_URL=https://sde-backend-2.services.construct-x.net/api
+      REACT_APP_API_URL=https://sde-backend-3.services.construct-x.net/api
       REACT_APP_KEYCLOAK_URL=https://centralidp.txcd.arena2036-x.de/auth
       REACT_APP_KEYCLOAK_REALM=CX-Central
       REACT_APP_CLIENT_ID=SDE-3
