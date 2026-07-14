@@ -85,7 +85,7 @@ backend:
     - enabled: true
       className: ""
       annotations:
-        cert-manager.io/cluster-issuer:
+        # cert-manager.io/cluster-issuer:
         # kubernetes.io/ingress.class:
         nginx.ingress.kubernetes.io/cors-allow-credentials: "true"
         nginx.ingress.kubernetes.io/cors-allow-methods: "PUT, GET, POST, OPTIONS"
@@ -95,7 +95,7 @@ backend:
       endpoints:
         - default
       tls:
-        enabled: true
+        enabled: false
         # secretName: "sde-backend.test-tls"
       # -- If present overwrites the default secret name
       # certManager:
@@ -103,8 +103,6 @@ backend:
       #   issuer: "letsencrypt-prod"
       #   # -- If preset enables certificate generation via cert-manager cluster-wide issuer
       #   clusterIssuer: "letsencrypt-prod"
-      hosts:
-        - sde-backend.tx.test
 
   resources:
   # We usually recommend not to specify default resources and to leave this as a conscious
@@ -185,7 +183,6 @@ backend:
       partner.pool.clientSecret=default
       partner.pool.grantType=client_credentials
       bpdm.provider.edc.dsp.api=default
-      bpdm.provider.bpnl=default
       portal.backend.hostname=default
       portal.backend.authentication.url=default
       portal.backend.clientId=default
@@ -193,7 +190,7 @@ backend:
       portal.backend.grantType=client_credentials
       bpndiscovery.hostname=default
       discovery.authentication.url=default
-      discovery.clientId=sdefault
+      discovery.clientId=default
       discovery.clientSecret=default
       discovery.grantType=client_credentials
       springdoc.api-docs.path=/api-docs
@@ -202,7 +199,6 @@ backend:
       policy.hub.clientId=default
       policy.hub.clientSecret=default
       policy.hub.grantType=client_credentials
-      management.endpoints.web.exposure.include=*
       management.endpoint.health.show-details=always
       management.metrics.export.prometheus.enabled=true
       management.endpoint.prometheus.enabled=true
@@ -252,8 +248,8 @@ frontend:
   ingresses:
     - enabled: true
       className: ""
-      annotations:
-        cert-manager.io/cluster-issuer:
+      annotations: {}
+        # cert-manager.io/cluster-issuer: ""
         # kubernetes.io/ingress.class:
         # kubernetes.io/ingress.class: addon-http-application-routing
         # nginx.ingress.kubernetes.io/cors-allow-credentials: "true"
@@ -265,7 +261,7 @@ frontend:
         - default
 
       tls:
-        enabled: true
+        enabled: false
         # secretName: "sde-frontend.test-tls"
           # -- If present overwrites the default secret name
       # certManager:
@@ -273,8 +269,6 @@ frontend:
       #   # issuer: "letsencrypt-prod"
       #     # -- If preset enables certificate generation via cert-manager cluster-wide issuer
       #   clusterIssuer: "letsencrypt-prod"
-      hosts:
-        - sde.tx.test
 
   resources:
   # We usually recommend not to specify default resources and to leave this as a conscious
@@ -301,19 +295,14 @@ frontend:
 
   affinity: {}
 
-  env:
-    - name: REACT_APP_API_URL
-      value: https://sde-backend.tx.test/api
-    - name: REACT_APP_KEYCLOAK_URL
-      value: https://centralidp.tx.test/auth
-    - name: REACT_APP_KEYCLOAK_REALM
-      value: CX-Central
-    - name: REACT_APP_CLIENT_ID
-      value: default
-    - name: REACT_APP_FILESIZE
-      value: "104857600"
-    - name: REACT_APP_DEFAULT_COMPANY_BPN
-      value: "<DEFAULT_BPN>"
+  configuration:
+    properties: |-
+      REACT_APP_API_URL=
+      REACT_APP_KEYCLOAK_URL=
+      REACT_APP_KEYCLOAK_REALM=
+      REACT_APP_CLIENT_ID=
+      REACT_APP_FILESIZE=
+      REACT_APP_DEFAULT_COMPANY_BPN=
 
 serviceAccount:
   # Specifies whether a service account should be created

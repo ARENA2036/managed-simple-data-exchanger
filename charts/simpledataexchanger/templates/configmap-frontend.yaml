@@ -21,10 +21,10 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: {{ include "sde.fullname" . }}-backend-configmap
+  name: {{ include "sde.fullname" . }}-frontend-configmap
   namespace: {{ .Release.Namespace | default "default" | quote }}
   labels:
-    {{- include "sde.backend.labels" . | nindent 4 }}
+    {{- include "sde.frontend.labels" . | nindent 4 }}
 data:
   configuration.properties: |-
-    {{- .Values.backend.configuration.properties | nindent 4 }}
+    {{- .Values.frontend.configuration.properties | nindent 4 }}

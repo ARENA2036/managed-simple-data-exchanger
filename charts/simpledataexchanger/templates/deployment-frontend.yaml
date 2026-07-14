@@ -54,5 +54,17 @@ spec:
           imagePullPolicy: {{ .Values.frontend.image.pullPolicy }}
           ports:
           - containerPort: {{ .Values.frontend.portContainer }}
-          env:
-            {{- toYaml .Values.frontend.env | nindent 12 }}
+          envFrom:
+            - configMapRef:
+                name: {{ include "sde.fullname" . }}-frontend-configmap
+          volumeMounts:
+            - name: configuration
+              mountPath: /app/configuration.properties
+              subPath: configuration.properties
+      volumes:
+        - name: configuration
+          configMap:
+            name: {{ include "sde.fullname" . }}-frontend-configmap
+            items:
+              - key: configuration.properties
+                path: configuration.properties

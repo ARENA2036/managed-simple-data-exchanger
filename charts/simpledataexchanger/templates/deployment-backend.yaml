@@ -78,17 +78,17 @@ spec:
                   name: {{ include "sde.fullname" . }}-sdepostgresql
                   key: "postgres-password"
             {{- end }}    
-          # envFrom:
-          #   - configMapRef:
-          #       name: {{ include "sde.fullname" . }}-backend-configmap
+          envFrom:
+            - configMapRef:
+                name: {{ include "sde.fullname" . }}-backend-configmap
           volumeMounts:
             - name: configuration
-              mountPath: /home/sdeuser/sdeapp/application.properties
-              subPath: application.properties
+              mountPath: /home/sdeuser/sdeapp/configuration.properties
+              subPath: configuration.properties
       volumes:
         - name: configuration
           configMap:
             name: {{ include "sde.fullname" . }}-backend-configmap
             items:
-              - key: application.properties
-                path: application.properties
+              - key: configuration.properties
+                path: configuration.properties
