@@ -161,8 +161,8 @@ backend:
       spring.jpa.hibernate.ddl-auto=update
       spring.jpa.open-in-view=false
       file.upload-dir=./temp/
-      logging.level.org.apache.http=debug
-      logging.level.root=debug
+      logging.level.org.apache.http=info
+      logging.level.root=info
       digital-twins.hostname=default
       digital-twins.authentication.url=default
       digital-twins.registry.uri=/api/v3
