@@ -139,9 +139,17 @@ backend:
       management.health.readinessstate.enabled=true
       management.health.livenessstate.enabled=true
       management.endpoints.web.exposure.include=*
+      management.endpoint.health.show-details=always
+      management.metrics.export.prometheus.enabled=true
+      management.endpoint.prometheus.enabled=true
+      spring.sleuth.sampler.probability=1.0
+      spring.zipkin.base-url=http://localhost:9411/
+      spring.zipkin.sender.type=web
+      spring.application.name=springboot-monitoring-SDE
       spring.lifecycle.timeout-per-shutdown-phase=30s
       logging.level.org.springframework.security.web.csrf=DEBUG
       spring.servlet.multipart.enabled=true
+      springdoc.api-docs.path=/api-docs
       spring.main.allow-bean-definition-overriding=true
       spring.servlet.multipart.file-size-threshold=2KB
       spring.servlet.multipart.max-file-size=200MB
@@ -168,6 +176,7 @@ backend:
       edc.apiKey=default
       edc.dsp.endpointpath=/api/v1/dsp
       edc.dataplane.endpointpath=/api/public
+      edc.dataplane.hostname=default
       edc.managementpath.apiversion=/v3
       edc.managementpath.apiversion.asset=/v3
       edc.consumer.hostname=default
@@ -176,8 +185,18 @@ backend:
       edc.consumer.managementpath=/management
       edc.consumer.protocol.path=/api/v1/dsp
       dft.hostname=default
-      dft.apiKeyHeader=default
+      dft.apiKeyHeader=X-Api-Key
       dft.apiKey=default
+      submodel.datasource.enable=true
+      submodel.datasource.hostname=default
+      submodel.datasource.authentication.enable=false
+      submodel.datasource.clientId=default
+      submodel.datasource.clientSecret=
+      submodel.datasource.grantType=client_credentials
+      edr.retry.count=5
+      edr.retry.time=1500
+      edr.refresh.auto=true
+      edr.refresh.enable=false
       manufacturerId=default
       partner.pool.hostname=default
       partner.pool.authentication.url=default
@@ -185,6 +204,9 @@ backend:
       partner.pool.clientSecret=default
       partner.pool.grantType=client_credentials
       bpdm.provider.edc.dsp.api=default
+      #bpdm.provider.edc.dataspace.api=default
+      bpdm.provider.bpnl=default
+      #bpdm.provider.edc.public.api=default
       portal.backend.hostname=default
       portal.backend.authentication.url=default
       portal.backend.clientId=default
@@ -195,22 +217,11 @@ backend:
       discovery.clientId=default
       discovery.clientSecret=default
       discovery.grantType=client_credentials
-      springdoc.api-docs.path=/api-docs
       policy.hub.hostname=default
       policy.hub.authentication.url=default
       policy.hub.clientId=default
       policy.hub.clientSecret=default
       policy.hub.grantType=client_credentials
-      management.endpoint.health.show-details=always
-      management.metrics.export.prometheus.enabled=true
-      management.endpoint.prometheus.enabled=true
-      spring.sleuth.sampler.probability=1.0
-      spring.zipkin.base-url=http://localhost:9411/
-      spring.zipkin.sender.type=web
-      spring.application.name=springboot-monitoring-SDE
-      #bpdm.provider.edc.dataspace.api=default
-      bpdm.provider.bpnl=default
-      #bpdm.provider.edc.public.api=default
 
 frontend:
   image:
@@ -253,7 +264,6 @@ frontend:
       annotations: {}
         # cert-manager.io/cluster-issuer: ""
         # kubernetes.io/ingress.class:
-        # kubernetes.io/ingress.class: addon-http-application-routing
         # nginx.ingress.kubernetes.io/cors-allow-credentials: "true"
         # nginx.ingress.kubernetes.io/cors-allow-methods: "PUT, GET, POST, OPTIONS"
         # nginx.ingress.kubernetes.io/cors-allow-origin: "*"
