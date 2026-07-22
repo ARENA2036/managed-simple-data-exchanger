@@ -20,4 +20,4 @@
 ################################################################################
 validate-maintainers: false
 chart-repos:
-  - cloudpirates=https://github.com/CloudPirates-io/helm-charts
+  - cloudpirates=oci://registry-1.docker.io/cloudpirates/postgres
