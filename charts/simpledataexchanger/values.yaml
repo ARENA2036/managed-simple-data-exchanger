@@ -82,7 +82,7 @@ backend:
       #   port: "8080"
       #   path: /api
   ingresses:
-    - enabled: true
+    - enabled: false
       className: ""
       annotations: {}
         # cert-manager.io/cluster-issuer:
@@ -91,7 +91,7 @@ backend:
         # nginx.ingress.kubernetes.io/cors-allow-methods: "PUT, GET, POST, OPTIONS"
         # nginx.ingress.kubernetes.io/cors-allow-origin: "https://*tx.test"
         # nginx.ingress.kubernetes.io/enable-cors: "true"
-      hostname: "sde-backend.tx.test"
+      hostname: ""
       endpoints:
         - default
       tls:
@@ -139,7 +139,7 @@ backend:
       management.health.readinessstate.enabled=true
       management.health.livenessstate.enabled=true
       management.endpoints.web.exposure.include=*
-      management.endpoint.health.show-details=always
+      management.endpoint.health.show-details=never
       management.metrics.export.prometheus.enabled=true
       management.endpoint.prometheus.enabled=true
       spring.sleuth.sampler.probability=1.0
@@ -147,7 +147,7 @@ backend:
       spring.zipkin.sender.type=web
       spring.application.name=springboot-monitoring-SDE
       spring.lifecycle.timeout-per-shutdown-phase=30s
-      logging.level.org.springframework.security.web.csrf=DEBUG
+      logging.level.org.springframework.security.web.csrf=INFO
       spring.servlet.multipart.enabled=true
       springdoc.api-docs.path=/api-docs
       spring.main.allow-bean-definition-overriding=true
@@ -259,7 +259,7 @@ frontend:
           # -- The path mapping the "default" api is going to be exposed at
         path: /
   ingresses:
-    - enabled: true
+    - enabled: false
       className: ""
       annotations: {}
         # cert-manager.io/cluster-issuer: ""
@@ -268,7 +268,7 @@ frontend:
         # nginx.ingress.kubernetes.io/cors-allow-methods: "PUT, GET, POST, OPTIONS"
         # nginx.ingress.kubernetes.io/cors-allow-origin: "*"
         # nginx.ingress.kubernetes.io/enable-cors: "true"
-      hostname: "sde.tx.test"
+      hostname: ""
       endpoints:
         - default
 

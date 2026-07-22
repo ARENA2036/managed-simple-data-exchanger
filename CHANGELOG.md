@@ -2,10 +2,10 @@
 
 New features, fixed bugs, known defects and other noteworthy changes to each release of the Simple-Data-Exchanger helm chart.
 
-## 1.0.5
+## 1.0.6 - 2026-07-22
 
 ### Added
-- Added cloudpirates/postgresql chart dependency
+- Added cloudpirates/postgres chart dependency
 
 ### Updated
 - Updated to v3.0.0 docker image version
