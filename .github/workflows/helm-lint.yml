@@ -1,4 +1,5 @@
 #################################################################################
+# Copyright (c) 2025 ARENA2036 e.V.
 # Copyright (c) 2023,2024 T-Systems International GmbH
 # Copyright (c) 2023,2024 Contributors to the Eclipse Foundation
 #
@@ -20,7 +21,6 @@
 name:  SDE Lint and Test Charts
 
 on:
-
   push:
     branches:
       - main
@@ -31,7 +31,6 @@ on:
       paths:
         - charts/**
 
-       
   workflow_dispatch:
       inputs:
         node_image:
@@ -52,18 +51,17 @@ on:
           required: false
           type: string
 
-
 jobs:
     lint-test:
         runs-on: ubuntu-latest
         steps:
         - name: Checkout
-          uses: actions/checkout@v3
+          uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
           with:
             fetch-depth: 0
 
         - name: Kubernetes KinD Cluster
-          uses: container-tools/kind-action@v1
+          uses: container-tools/kind-action@0ad70e2299366b0e1552c7240f4e4567148f723e # v2.0.4
           with:
             # upgrade version, default (v0.17.0) uses node image v1.21.1 and doesn't work with more recent node image versions
             version: v0.20.0
@@ -71,15 +69,15 @@ jobs:
             node_image: ${{ github.event.inputs.node_image || 'kindest/node:v1.27.13' }}
 
         - name: Set up Helm
-          uses: azure/setup-helm@v3
+          uses: azure/setup-helm@b9e51907a09c216f16ebe8536097933489208112 # v4
 
       # Setup python as a prerequisite for chart linting 
-        - uses: actions/setup-python@v4
+        - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
           with:
             python-version: 3.9
 
         - name: Set up chart-testing
-          uses: helm/chart-testing-action@v2.3.1
+          uses: helm/chart-testing-action@0d28d3144d3a25ea2cc349d6e59901c4ff469b3b # v2.7.0
 
         - name: Run chart-testing (list-changed)
           id: list-changed
@@ -101,12 +99,8 @@ jobs:
         # default value for event_name != workflow_dispatch
         - name: Run helm upgrade
           run: |
-            helm repo add bitnami https://charts.bitnami.com/bitnami
             helm repo add tractusx-dev https://eclipse-tractusx.github.io/charts/dev
             helm install simpledataexchanger tractusx-dev/sde --version ${{ github.event.inputs.upgrade_from || '0.1.8' }}
             helm dependency update charts/simpledataexchanger
             helm upgrade simpledataexchanger charts/simpledataexchanger
           if: github.event_name != 'pull_request' || steps.list-changed.outputs.changed == 'true'
-
-
-
