@@ -1,42 +1,48 @@
+#################################################################################
+# Copyright (c) 2025 ARENA2036 e.V.
+#
+# SPDX-License-Identifier: Apache-2.0
+#################################################################################
+
 name: SDE CI-CD Pipeline
 
-# -------------------------------------------------------------------
-# Deployment use cases
+# Deployment rules:
 #
-# Developer Preview
-#   Branch: feature/**, bugfix/**, hotfix/**
-#   Trigger: automatic push
-#   Cluster: Int/AP6
+# Developer Preview:
+#   feature/**, bugfix/**, hotfix/**, chore/**, docs/**
+#   Automatic on push
+#   Cluster: arenax-ap6
 #   Values: values-dev.yaml
 #
-# Shared Development
-#   Branch: develop
-#   Trigger: manual, environment=dev-ap6
-#   Cluster: Int/AP6
+# Shared Development:
+#   develop
+#   Manual with environment=dev-ap6
+#   Cluster: arenax-ap6
 #   Values: values-dev.yaml
 #
-# Staging
-#   Branch: develop
-#   Trigger: manual, environment=staging
-#   Cluster: Int/AP6
+# Staging:
+#   develop
+#   Manual with environment=staging
+#   Cluster: arenax-staging
 #   Values: values-staging.yaml
 #
-# Production
-#   Branch: release/**
-#   Trigger: manual, environment=prod
-#   Cluster: Arena Production
+# Production:
+#   release/**
+#   Manual with environment=prod
+#   Cluster: arenax-prod
 #   Values: values-prod.yaml
 #
-# Docker images are built in the frontend and backend repositories.
-# This workflow only deploys image tags that already exist in Harbor.
-# -------------------------------------------------------------------
+# This repository does not build Docker images.
+# Images must already exist in Harbor.
 
 on:
   push:
     branches:
-      - 'feature/**'
-      - 'bugfix/**'
-      - 'hotfix/**'
+      - "feature/**"
+      - "bugfix/**"
+      - "hotfix/**"
+      - "chore/**"
+      - "docs/**"
       - ci-cd-branch
 
   workflow_dispatch:
@@ -52,7 +58,7 @@ on:
           - prod
 
       image_tag:
-        description: "Optional existing image tag for both backend and frontend"
+        description: "Optional existing image tag for backend and frontend"
         required: false
         type: string
 
@@ -68,12 +74,15 @@ on:
 
 permissions:
   contents: write
-  security-events: write
   actions: read
+  security-events: write
   id-token: write
 
+  # Required by the current reusable TruffleHog workflow.
+  issues: write
+
 concurrency:
-  group: sde-cicd-${{ github.ref }}
+  group: sde-deployment-${{ github.ref }}
   cancel-in-progress: false
 
 env:
@@ -86,132 +95,27 @@ env:
   BACKEND_IMAGE_REPOSITORY: harbor-hub-shared.arena.3ascloud.de/arena2036/managed-simple-data-exchanger-backend
   FRONTEND_IMAGE_REPOSITORY: harbor-hub-shared.arena.3ascloud.de/arena2036/managed-simple-data-exchanger-frontend
 
-  # Kubeconfig for the cluster where central Argo CD is installed.
+  # Kubeconfig for the cluster hosting Central Argo CD.
   CENTRAL_ARGOCD_VAULT_PATH: staging/infra/cluster-prod
 
   VAULT_VERSION: "1.21.2"
 
 jobs:
-  # -----------------------------------------------------------------
-  # Validate the branch and environment combination.
-  # -----------------------------------------------------------------
-  validate-request:
-    name: Validate Deployment Request
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Validate request
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          EVENT_NAME="${{ github.event_name }}"
-          BRANCH_NAME="${{ github.ref_name }}"
-          TARGET_ENVIRONMENT="${{ github.event.inputs.environment }}"
-
-          echo "Event: $EVENT_NAME"
-          echo "Branch: $BRANCH_NAME"
-          echo "Environment: $TARGET_ENVIRONMENT"
-
-          if [[ "$EVENT_NAME" == "push" ]]; then
-            if [[ "$BRANCH_NAME" == "ci-cd-branch" ||
-                  "$BRANCH_NAME" == feature/* ||
-                  "$BRANCH_NAME" == bugfix/* ||
-                  "$BRANCH_NAME" == hotfix/* ]]; then
-
-              echo "Valid developer preview request"
-              exit 0
-            fi
-
-            echo "Automatic deployment is not allowed from $BRANCH_NAME"
-            exit 1
-          fi
-
-          if [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
-            if [[ "$BRANCH_NAME" == "develop" &&
-                  "$TARGET_ENVIRONMENT" == "dev-ap6" ]]; then
-
-              echo "Valid shared development request"
-              exit 0
-            fi
-
-            if [[ "$BRANCH_NAME" == "develop" &&
-                  "$TARGET_ENVIRONMENT" == "staging" ]]; then
-
-              echo "Valid staging request"
-              exit 0
-            fi
-
-            if [[ "$BRANCH_NAME" == release/* &&
-                  "$TARGET_ENVIRONMENT" == "prod" ]]; then
-
-              echo "Valid production request"
-              exit 0
-            fi
-
-            echo "Invalid branch/environment combination"
-            echo
-            echo "Allowed manual combinations:"
-            echo "  develop + dev-ap6"
-            echo "  develop + staging"
-            echo "  release/** + prod"
-            exit 1
-          fi
-
-          echo "Unsupported event: $EVENT_NAME"
-          exit 1
-
-  # -----------------------------------------------------------------
-  # Existing Helm repository CI checks.
-  #
-  # Each called workflow must contain:
-  #
-  # on:
-  #   workflow_call:
-  # -----------------------------------------------------------------
-  helm-lint:
-    name: SDE Lint and Test Charts
-    needs: validate-request
-    uses: ./.github/workflows/helm-lint.yml
-    secrets: inherit
-
-  kics:
-    name: KICS
-    needs: validate-request
-    uses: ./.github/workflows/kics.yml
-    secrets: inherit
-
+  # =================================================================
+  # Scan the Helm repository for secrets.
+  # trufflehog.yml must support workflow_call.
+  # =================================================================
   trufflehog:
-    name: TruffleHog
-    needs: validate-request
+    name: Secret Scan
     uses: ./.github/workflows/trufflehog.yml
     secrets: inherit
 
-  # -----------------------------------------------------------------
-  # Resolve image tags, values file and Argo CD template.
-  #
-  # Tag priority for manual runs:
-  #
-  # backend_image_tag / frontend_image_tag
-  #   -> image_tag
-  #   -> environment default
-  #
-  # Preview default:
-  #   feature/new-ui -> feature-new-ui
-  #
-  # Dev and staging default:
-  #   develop
-  #
-  # Production:
-  #   explicit tags are required.
-  # -----------------------------------------------------------------
+  # =================================================================
+  # Resolve deployment environment, values file and image tags.
+  # =================================================================
   resolve-deployment:
-    name: Resolve Deployment Configuration
-    needs:
-      - helm-lint
-      - kics
-      - trufflehog
-
+    name: Resolve Deployment
+    needs: trufflehog
     runs-on: ubuntu-latest
 
     outputs:
@@ -222,17 +126,14 @@ jobs:
       backend_tag: ${{ steps.resolve.outputs.backend_tag }}
       frontend_tag: ${{ steps.resolve.outputs.frontend_tag }}
 
+      target_branch: ${{ steps.resolve.outputs.target_branch }}
       application_name: ${{ steps.resolve.outputs.application_name }}
       release_name: ${{ steps.resolve.outputs.release_name }}
-      target_branch: ${{ steps.resolve.outputs.target_branch }}
-
-      safe_branch: ${{ steps.resolve.outputs.safe_branch }}
       namespace: ${{ steps.resolve.outputs.namespace }}
-
-      github_environment: ${{ steps.resolve.outputs.github_environment }}
+      safe_branch: ${{ steps.resolve.outputs.safe_branch }}
 
     steps:
-      - name: Resolve deployment
+      - name: Resolve deployment configuration
         id: resolve
         shell: bash
         run: |
@@ -246,7 +147,7 @@ jobs:
           BACKEND_TAG="${{ github.event.inputs.backend_image_tag }}"
           FRONTEND_TAG="${{ github.event.inputs.frontend_image_tag }}"
 
-          # Backend/frontend override the common tag.
+          # Component tags override the common image tag.
           if [[ -z "$BACKEND_TAG" ]]; then
             BACKEND_TAG="$COMMON_TAG"
           fi
@@ -255,9 +156,9 @@ jobs:
             FRONTEND_TAG="$COMMON_TAG"
           fi
 
-          # Docker-compatible branch tag.
-          # feature/new-ui becomes feature-new-ui.
-          BRANCH_SLUG="$(printf '%s' "$BRANCH_NAME" \
+          # Docker tag:
+          # feature/new-ui -> feature-new-ui
+          BRANCH_TAG="$(printf '%s' "$BRANCH_NAME" \
             | tr '[:upper:]' '[:lower:]' \
             | sed 's#[^a-z0-9._-]#-#g' \
             | sed 's/--*/-/g' \
@@ -265,8 +166,8 @@ jobs:
             | sed 's/-$//' \
             | cut -c1-100)"
 
-          # Kubernetes/DNS-compatible branch slug.
-          DNS_BRANCH_SLUG="$(printf '%s' "$BRANCH_NAME" \
+          # Kubernetes-safe preview identifier.
+          DNS_BRANCH="$(printf '%s' "$BRANCH_NAME" \
             | tr '[:upper:]' '[:lower:]' \
             | sed 's#[^a-z0-9-]#-#g' \
             | sed 's/--*/-/g' \
@@ -274,7 +175,7 @@ jobs:
             | sed 's/-$//' \
             | cut -c1-35)"
 
-          if [[ -z "$BRANCH_SLUG" || -z "$DNS_BRANCH_SLUG" ]]; then
+          if [[ -z "$BRANCH_TAG" || -z "$DNS_BRANCH" ]]; then
             echo "Could not generate safe branch identifiers"
             exit 1
           fi
@@ -283,24 +184,43 @@ jobs:
             | sha256sum \
             | cut -c1-7)"
 
-          SAFE_BRANCH="${DNS_BRANCH_SLUG}-${BRANCH_HASH}"
+          SAFE_BRANCH="${DNS_BRANCH}-${BRANCH_HASH}"
 
+          # ---------------------------------------------------------
+          # Automatic developer preview.
+          # ---------------------------------------------------------
           if [[ "$EVENT_NAME" == "push" ]]; then
+            if [[ "$BRANCH_NAME" != "ci-cd-branch" &&
+                  "$BRANCH_NAME" != feature/* &&
+                  "$BRANCH_NAME" != bugfix/* &&
+                  "$BRANCH_NAME" != hotfix/* &&
+                  "$BRANCH_NAME" != chore/* &&
+                  "$BRANCH_NAME" != docs/* ]]; then
+
+              echo "Automatic preview is not allowed from: $BRANCH_NAME"
+              exit 1
+            fi
+
             DEPLOYMENT_TYPE="preview"
             VALUES_FILE="$DEV_VALUES_FILE"
             TEMPLATE_FILE=".github/argocd/sde-preview-app.yaml"
 
-            # Frontend/backend CI must publish this branch tag.
-            BACKEND_TAG="$BRANCH_SLUG"
-            FRONTEND_TAG="$BRANCH_SLUG"
+            # Matching tags must already exist in both source repos.
+            BACKEND_TAG="$BRANCH_TAG"
+            FRONTEND_TAG="$BRANCH_TAG"
 
+            TARGET_BRANCH="$BRANCH_NAME"
             APPLICATION_NAME="sde-${SAFE_BRANCH}"
             RELEASE_NAME="sde-${SAFE_BRANCH}"
-            TARGET_BRANCH="$BRANCH_NAME"
             NAMESPACE="sde-${SAFE_BRANCH}"
-            GITHUB_ENVIRONMENT="sde-preview"
 
-          elif [[ "$TARGET_ENVIRONMENT" == "dev-ap6" ]]; then
+          # ---------------------------------------------------------
+          # Manual shared development deployment.
+          # ---------------------------------------------------------
+          elif [[ "$EVENT_NAME" == "workflow_dispatch" &&
+                  "$TARGET_ENVIRONMENT" == "dev-ap6" &&
+                  "$BRANCH_NAME" == "develop" ]]; then
+
             DEPLOYMENT_TYPE="shared-dev"
             VALUES_FILE="$DEV_VALUES_FILE"
             TEMPLATE_FILE=".github/argocd/sde-dev-app.yaml"
@@ -313,13 +233,18 @@ jobs:
               FRONTEND_TAG="develop"
             fi
 
+            TARGET_BRANCH="develop"
             APPLICATION_NAME="sde-application-ap6"
             RELEASE_NAME="sde"
-            TARGET_BRANCH="develop"
             NAMESPACE="simple-data-exchanger"
-            GITHUB_ENVIRONMENT="sde-dev-ap6"
 
-          elif [[ "$TARGET_ENVIRONMENT" == "staging" ]]; then
+          # ---------------------------------------------------------
+          # Manual staging deployment.
+          # ---------------------------------------------------------
+          elif [[ "$EVENT_NAME" == "workflow_dispatch" &&
+                  "$TARGET_ENVIRONMENT" == "staging" &&
+                  "$BRANCH_NAME" == "develop" ]]; then
+
             DEPLOYMENT_TYPE="staging"
             VALUES_FILE="$STAGING_VALUES_FILE"
             TEMPLATE_FILE=".github/argocd/sde-staging-app.yaml"
@@ -332,35 +257,45 @@ jobs:
               FRONTEND_TAG="develop"
             fi
 
-            APPLICATION_NAME="sde-application-staging"
-            RELEASE_NAME="sde-staging"
             TARGET_BRANCH="develop"
-            NAMESPACE="simple-data-exchanger-staging"
-            GITHUB_ENVIRONMENT="sde-staging"
+            APPLICATION_NAME="sde-application-staging"
+            RELEASE_NAME="sde"
+            NAMESPACE="simple-data-exchanger"
 
-          elif [[ "$TARGET_ENVIRONMENT" == "prod" ]]; then
+          # ---------------------------------------------------------
+          # Manual production deployment.
+          # ---------------------------------------------------------
+          elif [[ "$EVENT_NAME" == "workflow_dispatch" &&
+                  "$TARGET_ENVIRONMENT" == "prod" &&
+                  "$BRANCH_NAME" == release/* ]]; then
+
             DEPLOYMENT_TYPE="production"
             VALUES_FILE="$PROD_VALUES_FILE"
             TEMPLATE_FILE=".github/argocd/sde-prod-app.yaml"
 
-            # Production must use explicit existing image tags.
+            # Do not use the Helm repository SHA as an image tag.
             if [[ -z "$BACKEND_TAG" || -z "$FRONTEND_TAG" ]]; then
-              echo "Production requires backend and frontend image tags"
-              echo "Provide:"
-              echo "  image_tag"
-              echo "or:"
-              echo "  backend_image_tag and frontend_image_tag"
+              echo "Production requires existing image tags"
+              echo
+              echo "Provide a common image_tag or both:"
+              echo "  backend_image_tag"
+              echo "  frontend_image_tag"
               exit 1
             fi
 
+            TARGET_BRANCH="$BRANCH_NAME"
             APPLICATION_NAME="sde-application-prod"
             RELEASE_NAME="sde"
-            TARGET_BRANCH="$BRANCH_NAME"
             NAMESPACE="simple-data-exchanger"
-            GITHUB_ENVIRONMENT="sde-production"
 
           else
-            echo "Unable to resolve deployment configuration"
+            echo "Invalid branch/environment combination"
+            echo
+            echo "Allowed deployments:"
+            echo "  push feature/**, bugfix/**, hotfix/**, chore/**, docs/**"
+            echo "  develop + dev-ap6"
+            echo "  develop + staging"
+            echo "  release/** + prod"
             exit 1
           fi
 
@@ -372,27 +307,22 @@ jobs:
             echo "backend_tag=$BACKEND_TAG"
             echo "frontend_tag=$FRONTEND_TAG"
 
+            echo "target_branch=$TARGET_BRANCH"
             echo "application_name=$APPLICATION_NAME"
             echo "release_name=$RELEASE_NAME"
-            echo "target_branch=$TARGET_BRANCH"
-
-            echo "safe_branch=$SAFE_BRANCH"
             echo "namespace=$NAMESPACE"
-
-            echo "github_environment=$GITHUB_ENVIRONMENT"
+            echo "safe_branch=$SAFE_BRANCH"
           } >> "$GITHUB_OUTPUT"
 
           echo "Deployment: $DEPLOYMENT_TYPE"
           echo "Values file: $VALUES_FILE"
-          echo "Application: $APPLICATION_NAME"
-          echo "Backend image: $BACKEND_IMAGE_REPOSITORY:$BACKEND_TAG"
-          echo "Frontend image: $FRONTEND_IMAGE_REPOSITORY:$FRONTEND_TAG"
+          echo "Backend: $BACKEND_IMAGE_REPOSITORY:$BACKEND_TAG"
+          echo "Frontend: $FRONTEND_IMAGE_REPOSITORY:$FRONTEND_TAG"
 
-  # -----------------------------------------------------------------
-  # Verify that the selected images already exist in Harbor.
-  #
-  # This job does not build any image.
-  # -----------------------------------------------------------------
+  # =================================================================
+  # Verify the selected backend and frontend images exist in Harbor.
+  # No Docker image is built here.
+  # =================================================================
   verify-images:
     name: Verify Existing Harbor Images
     needs: resolve-deployment
@@ -409,39 +339,58 @@ jobs:
 
           skopeo --version
 
-      - name: Verify backend image
+      # Retry because frontend/backend builds can complete at
+      # slightly different times.
+      - name: Verify backend and frontend images
         env:
-          IMAGE: ${{ env.BACKEND_IMAGE_REPOSITORY }}:${{ needs.resolve-deployment.outputs.backend_tag }}
+          BACKEND_TAG: ${{ needs.resolve-deployment.outputs.backend_tag }}
+          FRONTEND_TAG: ${{ needs.resolve-deployment.outputs.frontend_tag }}
 
         shell: bash
         run: |
           set -euo pipefail
 
-          echo "Checking backend image: $IMAGE"
+          BACKEND_IMAGE="${BACKEND_IMAGE_REPOSITORY}:${BACKEND_TAG}"
+          FRONTEND_IMAGE="${FRONTEND_IMAGE_REPOSITORY}:${FRONTEND_TAG}"
 
-          skopeo inspect \
-            --creds "${{ secrets.HBR_USERNAME }}:${{ secrets.HBR_PASSWORD }}" \
-            "docker://${IMAGE}" \
-            > /tmp/backend-image.json
+          for ATTEMPT in {1..20}; do
+            BACKEND_FOUND=false
+            FRONTEND_FOUND=false
 
-          echo "Backend image exists"
+            if skopeo inspect \
+              --creds "${{ secrets.HBR_USERNAME }}:${{ secrets.HBR_PASSWORD }}" \
+              "docker://${BACKEND_IMAGE}" \
+              >/dev/null 2>&1; then
 
-      - name: Verify frontend image
-        env:
-          IMAGE: ${{ env.FRONTEND_IMAGE_REPOSITORY }}:${{ needs.resolve-deployment.outputs.frontend_tag }}
+              BACKEND_FOUND=true
+            fi
 
-        shell: bash
-        run: |
-          set -euo pipefail
+            if skopeo inspect \
+              --creds "${{ secrets.HBR_USERNAME }}:${{ secrets.HBR_PASSWORD }}" \
+              "docker://${FRONTEND_IMAGE}" \
+              >/dev/null 2>&1; then
 
-          echo "Checking frontend image: $IMAGE"
+              FRONTEND_FOUND=true
+            fi
 
-          skopeo inspect \
-            --creds "${{ secrets.HBR_USERNAME }}:${{ secrets.HBR_PASSWORD }}" \
-            "docker://${IMAGE}" \
-            > /tmp/frontend-image.json
+            echo "Attempt ${ATTEMPT}/20"
+            echo "Backend found: $BACKEND_FOUND"
+            echo "Frontend found: $FRONTEND_FOUND"
 
-          echo "Frontend image exists"
+            if [[ "$BACKEND_FOUND" == true &&
+                  "$FRONTEND_FOUND" == true ]]; then
+
+              echo "Both Harbor images exist"
+              exit 0
+            fi
+
+            sleep 30
+          done
+
+          echo "Required images were not found"
+          echo "Backend: $BACKEND_IMAGE"
+          echo "Frontend: $FRONTEND_IMAGE"
+          exit 1
 
       - name: Write image summary
         shell: bash
@@ -455,11 +404,11 @@ jobs:
             echo "| Frontend | \`${FRONTEND_IMAGE_REPOSITORY}:${{ needs.resolve-deployment.outputs.frontend_tag }}\` |"
           } >> "$GITHUB_STEP_SUMMARY"
 
-  # -----------------------------------------------------------------
-  # Update the selected environment values file.
-  # -----------------------------------------------------------------
-  update-image-values:
-    name: Update Helm Image Values
+  # =================================================================
+  # Update values-dev.yaml, values-staging.yaml or values-prod.yaml.
+  # =================================================================
+  update-image-tag:
+    name: Update Helm Image Tags for Deployment
     needs:
       - resolve-deployment
       - verify-images
@@ -470,7 +419,7 @@ jobs:
       contents: write
 
     steps:
-      - name: Checkout selected branch
+      - name: Checkout deployment branch
         uses: actions/checkout@v4
         with:
           ref: ${{ needs.resolve-deployment.outputs.target_branch }}
@@ -488,13 +437,11 @@ jobs:
             https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
 
           sudo chmod +x /usr/local/bin/yq
-
           yq --version
 
-      - name: Update backend and frontend images
+      - name: Update backend and frontend image tags
         env:
           VALUES_FILE: ${{ needs.resolve-deployment.outputs.values_file }}
-
           BACKEND_TAG: ${{ needs.resolve-deployment.outputs.backend_tag }}
           FRONTEND_TAG: ${{ needs.resolve-deployment.outputs.frontend_tag }}
 
@@ -523,12 +470,13 @@ jobs:
             '.frontend.image.tag = strenv(FRONTEND_TAG)' \
             "$VALUES_FILE"
 
-          echo "Updated values:"
+          echo "Updated Helm values:"
           git diff -- "$VALUES_FILE"
 
-      - name: Validate updated Helm chart
+      - name: Validate Helm values
         env:
           VALUES_FILE: ${{ needs.resolve-deployment.outputs.values_file }}
+          TARGET_NAMESPACE: ${{ needs.resolve-deployment.outputs.namespace }}
 
         shell: bash
         run: |
@@ -543,16 +491,13 @@ jobs:
 
           helm template sde \
             "$CHART_PATH" \
-            --namespace "${{ needs.resolve-deployment.outputs.namespace }}" \
+            --namespace "$TARGET_NAMESPACE" \
             --values "$VALUES_FILE" \
             > /tmp/sde-rendered.yaml
 
-          if [[ ! -s /tmp/sde-rendered.yaml ]]; then
-            echo "Rendered Helm manifest is empty"
-            exit 1
-          fi
+          test -s /tmp/sde-rendered.yaml
 
-      - name: Commit updated image values
+      - name: Commit updated Helm values
         env:
           VALUES_FILE: ${{ needs.resolve-deployment.outputs.values_file }}
           BACKEND_TAG: ${{ needs.resolve-deployment.outputs.backend_tag }}
@@ -574,46 +519,39 @@ jobs:
           fi
 
           git commit \
-            -m "chore: deploy backend ${BACKEND_TAG}, frontend ${FRONTEND_TAG} [skip ci]"
+            -m "chore: update SDE image tags [skip ci]"
 
           git pull --rebase origin "$TARGET_BRANCH"
           git push origin "HEAD:${TARGET_BRANCH}"
 
-  # -----------------------------------------------------------------
-  # Generate and apply the correct Argo CD Application.
-  #
-  # GitHub Actions connects only to the cluster hosting central
-  # Argo CD. The target deployment cluster is defined inside each
-  # Argo CD Application:
-  #
-  # Preview/shared development/staging -> arenax-ap6
-  # Production                         -> arenax-prod
-  # -----------------------------------------------------------------
-  deploy:
-    name: Deploy Through Central Argo CD
+  # =================================================================
+  # Developer Preview — AP6.
+  # =================================================================
+  deploy-preview:
+    name: Deploy Developer Preview
     needs:
       - resolve-deployment
-      - update-image-values
+      - update-image-tag
+
+    if: |
+      needs.resolve-deployment.outputs.deployment_type == 'preview'
 
     runs-on: ubuntu-latest
-
-    environment:
-      name: ${{ needs.resolve-deployment.outputs.github_environment }}
+    environment: sde-preview
 
     steps:
-      - name: Checkout latest deployment branch
+      - name: Checkout preview branch
         uses: actions/checkout@v4
         with:
           ref: ${{ needs.resolve-deployment.outputs.target_branch }}
           fetch-depth: 0
 
-      - name: Install kubectl, yq and Vault
+      - name: Install tools
         shell: bash
         run: |
           set -euo pipefail
 
-          KUBECTL_VERSION="$(curl -L -s \
-            https://dl.k8s.io/release/stable.txt)"
+          KUBECTL_VERSION="$(curl -L -s https://dl.k8s.io/release/stable.txt)"
 
           curl -LO -s \
             "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl"
@@ -631,15 +569,10 @@ jobs:
             -o vault.zip
 
           unzip -q vault.zip
-
           chmod +x vault
           sudo mv vault /usr/local/bin/vault
 
-          kubectl version --client
-          yq --version
-          vault version
-
-      - name: Connect to central Argo CD cluster
+      - name: Connect to Central Argo CD cluster
         shell: bash
         run: |
           set -euo pipefail
@@ -656,29 +589,23 @@ jobs:
 
           chmod 600 "$HOME/.kube/config"
 
-          CONTEXT="$(yq e \
-            '.current-context' \
-            "$HOME/.kube/config")"
+          CONTEXT="$(yq e '.current-context' "$HOME/.kube/config")"
 
           if [[ -z "$CONTEXT" || "$CONTEXT" == "null" ]]; then
-            echo "Central Argo CD Kubernetes context was not found"
+            echo "Central Argo CD context was not found"
             exit 1
           fi
 
           kubectl --context="$CONTEXT" cluster-info
+          echo "ARGOCD_KUBE_CONTEXT=$CONTEXT" >> "$GITHUB_ENV"
 
-          echo "ARGOCD_CONTEXT=$CONTEXT" >> "$GITHUB_ENV"
-
-      - name: Generate Argo CD Application
+      - name: Generate preview Argo CD Application
         env:
-          DEPLOYMENT_TYPE: ${{ needs.resolve-deployment.outputs.deployment_type }}
           TEMPLATE_FILE: ${{ needs.resolve-deployment.outputs.template_file }}
-
           APPLICATION_NAME: ${{ needs.resolve-deployment.outputs.application_name }}
           RELEASE_NAME: ${{ needs.resolve-deployment.outputs.release_name }}
           TARGET_BRANCH: ${{ needs.resolve-deployment.outputs.target_branch }}
-          NAMESPACE: ${{ needs.resolve-deployment.outputs.namespace }}
-
+          TARGET_NAMESPACE: ${{ needs.resolve-deployment.outputs.namespace }}
           BACKEND_TAG: ${{ needs.resolve-deployment.outputs.backend_tag }}
           FRONTEND_TAG: ${{ needs.resolve-deployment.outputs.frontend_tag }}
 
@@ -686,47 +613,19 @@ jobs:
         run: |
           set -euo pipefail
 
-          GENERATED="/tmp/sde-application.yaml"
-
-          if [[ ! -f "$TEMPLATE_FILE" ]]; then
-            echo "Argo CD template not found: $TEMPLATE_FILE"
-            exit 1
-          fi
+          GENERATED="/tmp/sde-preview-app.yaml"
 
           cp "$TEMPLATE_FILE" "$GENERATED"
 
-          sed -i \
-            "s|REPLACE_APPLICATION|${APPLICATION_NAME}|g" \
-            "$GENERATED"
-
-          sed -i \
-            "s|REPLACE_BACKEND_TAG|${BACKEND_TAG}|g" \
-            "$GENERATED"
-
-          sed -i \
-            "s|REPLACE_FRONTEND_TAG|${FRONTEND_TAG}|g" \
-            "$GENERATED"
-
-          # Preview placeholders.
-          sed -i \
-            "s|REPLACE_BRANCH_NAME|${TARGET_BRANCH}|g" \
-            "$GENERATED"
-
-          sed -i \
-            "s|REPLACE_RELEASE_NAME|${RELEASE_NAME}|g" \
-            "$GENERATED"
-
-          sed -i \
-            "s|REPLACE_NAMESPACE|${NAMESPACE}|g" \
-            "$GENERATED"
-
-          # Production placeholder.
-          sed -i \
-            "s|REPLACE_BRANCH|${TARGET_BRANCH}|g" \
-            "$GENERATED"
+          sed -i "s|REPLACE_APPLICATION|${APPLICATION_NAME}|g" "$GENERATED"
+          sed -i "s|REPLACE_BRANCH_NAME|${TARGET_BRANCH}|g" "$GENERATED"
+          sed -i "s|REPLACE_RELEASE_NAME|${RELEASE_NAME}|g" "$GENERATED"
+          sed -i "s|REPLACE_BACKEND_TAG|${BACKEND_TAG}|g" "$GENERATED"
+          sed -i "s|REPLACE_FRONTEND_TAG|${FRONTEND_TAG}|g" "$GENERATED"
+          sed -i "s|REPLACE_NAMESPACE|${TARGET_NAMESPACE}|g" "$GENERATED"
 
           if grep -q 'REPLACE_' "$GENERATED"; then
-            echo "Unresolved placeholders found:"
+            echo "Unresolved placeholders:"
             grep 'REPLACE_' "$GENERATED"
             exit 1
           fi
@@ -736,51 +635,377 @@ jobs:
             --validate=false \
             -f "$GENERATED"
 
-          echo "Generated Argo CD Application:"
           cat "$GENERATED"
 
-      - name: Apply Argo CD Application
+      - name: Apply preview Application
         shell: bash
         run: |
           set -euo pipefail
 
           kubectl \
-            --context="$ARGOCD_CONTEXT" \
+            --context="$ARGOCD_KUBE_CONTEXT" \
             apply \
-            -f /tmp/sde-application.yaml
+            -f /tmp/sde-preview-app.yaml
 
           kubectl \
-            --context="$ARGOCD_CONTEXT" \
+            --context="$ARGOCD_KUBE_CONTEXT" \
             get application \
             "${{ needs.resolve-deployment.outputs.application_name }}" \
             -n argocd
 
-      - name: Write deployment summary
-        shell: bash
-        run: |
-          {
-            echo "## SDE deployment"
-            echo
-            echo "| Property | Value |"
-            echo "|---|---|"
-            echo "| Deployment | \`${{ needs.resolve-deployment.outputs.deployment_type }}\` |"
-            echo "| Application | \`${{ needs.resolve-deployment.outputs.application_name }}\` |"
-            echo "| Namespace | \`${{ needs.resolve-deployment.outputs.namespace }}\` |"
-            echo "| Branch | \`${{ needs.resolve-deployment.outputs.target_branch }}\` |"
-            echo "| Backend tag | \`${{ needs.resolve-deployment.outputs.backend_tag }}\` |"
-            echo "| Frontend tag | \`${{ needs.resolve-deployment.outputs.frontend_tag }}\` |"
-          } >> "$GITHUB_STEP_SUMMARY"
-
-  # -----------------------------------------------------------------
-  # Release the Helm chart after production deployment.
-  #
-  # chart-release.yml must support workflow_call.
-  # -----------------------------------------------------------------
-  chart-release:
-    name: Release Helm Chart
+  # =================================================================
+  # Shared Development — AP6.
+  # =================================================================
+  deploy-shared-dev:
+    name: Deploy Shared Development
     needs:
       - resolve-deployment
-      - deploy
+      - update-image-tag
+
+    if: |
+      needs.resolve-deployment.outputs.deployment_type == 'shared-dev'
+
+    runs-on: ubuntu-latest
+    environment: sde-dev-ap6
+
+    steps:
+      - name: Checkout develop
+        uses: actions/checkout@v4
+        with:
+          ref: develop
+          fetch-depth: 0
+
+      - name: Install tools
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          KUBECTL_VERSION="$(curl -L -s https://dl.k8s.io/release/stable.txt)"
+
+          curl -LO -s \
+            "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl"
+
+          chmod +x kubectl
+          sudo mv kubectl /usr/local/bin/kubectl
+
+          sudo wget -qO /usr/local/bin/yq \
+            https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
+
+          sudo chmod +x /usr/local/bin/yq
+
+          curl -sSL \
+            "https://releases.hashicorp.com/vault/${VAULT_VERSION}/vault_${VAULT_VERSION}_linux_amd64.zip" \
+            -o vault.zip
+
+          unzip -q vault.zip
+          chmod +x vault
+          sudo mv vault /usr/local/bin/vault
+
+      - name: Connect to Central Argo CD cluster
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          mkdir -p "$HOME/.kube"
+
+          export VAULT_ADDR="${{ secrets.VAULT_ADDR_PROD }}"
+          export VAULT_TOKEN="${{ secrets.VAULT_TOKEN_PROD }}"
+
+          vault kv get \
+            -field=config \
+            "$CENTRAL_ARGOCD_VAULT_PATH" \
+            > "$HOME/.kube/config"
+
+          chmod 600 "$HOME/.kube/config"
+
+          CONTEXT="$(yq e '.current-context' "$HOME/.kube/config")"
+
+          if [[ -z "$CONTEXT" || "$CONTEXT" == "null" ]]; then
+            echo "Central Argo CD context was not found"
+            exit 1
+          fi
+
+          kubectl --context="$CONTEXT" cluster-info
+          echo "ARGOCD_KUBE_CONTEXT=$CONTEXT" >> "$GITHUB_ENV"
+
+      - name: Generate Shared Development Application
+        env:
+          TEMPLATE_FILE: ${{ needs.resolve-deployment.outputs.template_file }}
+          APPLICATION_NAME: ${{ needs.resolve-deployment.outputs.application_name }}
+          BACKEND_TAG: ${{ needs.resolve-deployment.outputs.backend_tag }}
+          FRONTEND_TAG: ${{ needs.resolve-deployment.outputs.frontend_tag }}
+
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          GENERATED="/tmp/sde-dev-app.yaml"
+
+          cp "$TEMPLATE_FILE" "$GENERATED"
+
+          sed -i "s|REPLACE_APPLICATION|${APPLICATION_NAME}|g" "$GENERATED"
+          sed -i "s|REPLACE_BACKEND_TAG|${BACKEND_TAG}|g" "$GENERATED"
+          sed -i "s|REPLACE_FRONTEND_TAG|${FRONTEND_TAG}|g" "$GENERATED"
+
+          if grep -q 'REPLACE_' "$GENERATED"; then
+            echo "Unresolved placeholders:"
+            grep 'REPLACE_' "$GENERATED"
+            exit 1
+          fi
+
+      - name: Apply Shared Development Application
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          kubectl \
+            --context="$ARGOCD_KUBE_CONTEXT" \
+            apply \
+            -f /tmp/sde-dev-app.yaml
+
+          kubectl \
+            --context="$ARGOCD_KUBE_CONTEXT" \
+            get application sde-application-ap6 \
+            -n argocd
+
+  # =================================================================
+  # Staging — arenax-staging.
+  # =================================================================
+  deploy-staging:
+    name: Deploy Staging
+    needs:
+      - resolve-deployment
+      - update-image-tag
+
+    if: |
+      needs.resolve-deployment.outputs.deployment_type == 'staging'
+
+    runs-on: ubuntu-latest
+    environment: sde-staging
+
+    steps:
+      - name: Checkout develop
+        uses: actions/checkout@v4
+        with:
+          ref: develop
+          fetch-depth: 0
+
+      - name: Install tools
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          KUBECTL_VERSION="$(curl -L -s https://dl.k8s.io/release/stable.txt)"
+
+          curl -LO -s \
+            "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl"
+
+          chmod +x kubectl
+          sudo mv kubectl /usr/local/bin/kubectl
+
+          sudo wget -qO /usr/local/bin/yq \
+            https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
+
+          sudo chmod +x /usr/local/bin/yq
+
+          curl -sSL \
+            "https://releases.hashicorp.com/vault/${VAULT_VERSION}/vault_${VAULT_VERSION}_linux_amd64.zip" \
+            -o vault.zip
+
+          unzip -q vault.zip
+          chmod +x vault
+          sudo mv vault /usr/local/bin/vault
+
+      - name: Connect to Central Argo CD cluster
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          mkdir -p "$HOME/.kube"
+
+          export VAULT_ADDR="${{ secrets.VAULT_ADDR_PROD }}"
+          export VAULT_TOKEN="${{ secrets.VAULT_TOKEN_PROD }}"
+
+          vault kv get \
+            -field=config \
+            "$CENTRAL_ARGOCD_VAULT_PATH" \
+            > "$HOME/.kube/config"
+
+          chmod 600 "$HOME/.kube/config"
+
+          CONTEXT="$(yq e '.current-context' "$HOME/.kube/config")"
+
+          if [[ -z "$CONTEXT" || "$CONTEXT" == "null" ]]; then
+            echo "Central Argo CD context was not found"
+            exit 1
+          fi
+
+          kubectl --context="$CONTEXT" cluster-info
+          echo "ARGOCD_KUBE_CONTEXT=$CONTEXT" >> "$GITHUB_ENV"
+
+      - name: Generate Staging Application
+        env:
+          TEMPLATE_FILE: ${{ needs.resolve-deployment.outputs.template_file }}
+          APPLICATION_NAME: ${{ needs.resolve-deployment.outputs.application_name }}
+          BACKEND_TAG: ${{ needs.resolve-deployment.outputs.backend_tag }}
+          FRONTEND_TAG: ${{ needs.resolve-deployment.outputs.frontend_tag }}
+
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          GENERATED="/tmp/sde-staging-app.yaml"
+
+          cp "$TEMPLATE_FILE" "$GENERATED"
+
+          sed -i "s|REPLACE_APPLICATION|${APPLICATION_NAME}|g" "$GENERATED"
+          sed -i "s|REPLACE_BACKEND_TAG|${BACKEND_TAG}|g" "$GENERATED"
+          sed -i "s|REPLACE_FRONTEND_TAG|${FRONTEND_TAG}|g" "$GENERATED"
+
+          if grep -q 'REPLACE_' "$GENERATED"; then
+            echo "Unresolved placeholders:"
+            grep 'REPLACE_' "$GENERATED"
+            exit 1
+          fi
+
+      - name: Apply Staging Application
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          kubectl \
+            --context="$ARGOCD_KUBE_CONTEXT" \
+            apply \
+            -f /tmp/sde-staging-app.yaml
+
+          kubectl \
+            --context="$ARGOCD_KUBE_CONTEXT" \
+            get application sde-application-staging \
+            -n argocd
+
+  # =================================================================
+  # Production — arenax-prod.
+  # =================================================================
+  deploy-production:
+    name: Deploy Production
+    needs:
+      - resolve-deployment
+      - update-image-tag
+
+    if: |
+      needs.resolve-deployment.outputs.deployment_type == 'production'
+
+    runs-on: ubuntu-latest
+    environment: sde-production
+
+    steps:
+      - name: Checkout release branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.resolve-deployment.outputs.target_branch }}
+          fetch-depth: 0
+
+      - name: Install tools
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          KUBECTL_VERSION="$(curl -L -s https://dl.k8s.io/release/stable.txt)"
+
+          curl -LO -s \
+            "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl"
+
+          chmod +x kubectl
+          sudo mv kubectl /usr/local/bin/kubectl
+
+          sudo wget -qO /usr/local/bin/yq \
+            https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
+
+          sudo chmod +x /usr/local/bin/yq
+
+          curl -sSL \
+            "https://releases.hashicorp.com/vault/${VAULT_VERSION}/vault_${VAULT_VERSION}_linux_amd64.zip" \
+            -o vault.zip
+
+          unzip -q vault.zip
+          chmod +x vault
+          sudo mv vault /usr/local/bin/vault
+
+      - name: Connect to Central Argo CD cluster
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          mkdir -p "$HOME/.kube"
+
+          export VAULT_ADDR="${{ secrets.VAULT_ADDR_PROD }}"
+          export VAULT_TOKEN="${{ secrets.VAULT_TOKEN_PROD }}"
+
+          vault kv get \
+            -field=config \
+            "$CENTRAL_ARGOCD_VAULT_PATH" \
+            > "$HOME/.kube/config"
+
+          chmod 600 "$HOME/.kube/config"
+
+          CONTEXT="$(yq e '.current-context' "$HOME/.kube/config")"
+
+          if [[ -z "$CONTEXT" || "$CONTEXT" == "null" ]]; then
+            echo "Central Argo CD context was not found"
+            exit 1
+          fi
+
+          kubectl --context="$CONTEXT" cluster-info
+          echo "ARGOCD_KUBE_CONTEXT=$CONTEXT" >> "$GITHUB_ENV"
+
+      - name: Generate Production Application
+        env:
+          TEMPLATE_FILE: ${{ needs.resolve-deployment.outputs.template_file }}
+          APPLICATION_NAME: ${{ needs.resolve-deployment.outputs.application_name }}
+          TARGET_BRANCH: ${{ needs.resolve-deployment.outputs.target_branch }}
+          BACKEND_TAG: ${{ needs.resolve-deployment.outputs.backend_tag }}
+          FRONTEND_TAG: ${{ needs.resolve-deployment.outputs.frontend_tag }}
+
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          GENERATED="/tmp/sde-prod-app.yaml"
+
+          cp "$TEMPLATE_FILE" "$GENERATED"
+
+          sed -i "s|REPLACE_APPLICATION|${APPLICATION_NAME}|g" "$GENERATED"
+          sed -i "s|REPLACE_BRANCH|${TARGET_BRANCH}|g" "$GENERATED"
+          sed -i "s|REPLACE_BACKEND_TAG|${BACKEND_TAG}|g" "$GENERATED"
+          sed -i "s|REPLACE_FRONTEND_TAG|${FRONTEND_TAG}|g" "$GENERATED"
+
+          if grep -q 'REPLACE_' "$GENERATED"; then
+            echo "Unresolved placeholders:"
+            grep 'REPLACE_' "$GENERATED"
+            exit 1
+          fi
+
+      - name: Apply Production Application
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          kubectl \
+            --context="$ARGOCD_KUBE_CONTEXT" \
+            apply \
+            -f /tmp/sde-prod-app.yaml
+
+          kubectl \
+            --context="$ARGOCD_KUBE_CONTEXT" \
+            get application sde-application-prod \
+            -n argocd
+
+  # =================================================================
+  # Release the Helm chart only after production deployment.
+  # =================================================================
+  chart-release:
+    name: Chart Release
+    needs: deploy-production
 
     if: |
       github.event_name == 'workflow_dispatch' &&
