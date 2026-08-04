@@ -2,7 +2,7 @@ apiVersion: argoproj.io/v1alpha1
 kind: Application
 
 metadata:
-  name: REPLACE_APPLICATION
+  name: sde-application-staging
   namespace: argocd
 
   labels:
@@ -22,7 +22,7 @@ spec:
     path: charts/simpledataexchanger
 
     helm:
-      releaseName: sde-staging
+      releaseName: sde
 
       valueFiles:
         - values-staging.yaml
