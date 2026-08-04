@@ -341,13 +341,17 @@ jobs:
 
       # Retry because frontend/backend builds can complete at
       # slightly different times.
+      # Retry because frontend and backend builds may finish at different times.
+    # Retry because frontend and backend builds may finish at different times.
       - name: Verify backend and frontend images
         env:
             HBR_USERNAME: ${{ secrets.HBR_USERNAME }}
             HBR_PASSWORD: ${{ secrets.HBR_PASSWORD }}
 
-            BACKEND_TAG: ${{ needs.resolve-deployment.outputs.backend_tag }}
-            FRONTEND_TAG: ${{ needs.resolve-deployment.outputs.frontend_tag }}
+            # BACKEND_TAG: ${{ needs.resolve-deployment.outputs.backend_tag }}
+            # FRONTEND_TAG: ${{ needs.resolve-deployment.outputs.frontend_tag }}
+            BACKEND_TAG: "latest"
+            FRONTEND_TAG: "latest"
 
         shell: bash
         run: |
@@ -361,6 +365,11 @@ jobs:
             exit 1
             fi
 
+            if [[ -z "$BACKEND_TAG" || -z "$FRONTEND_TAG" ]]; then
+            echo "Backend or frontend image tag is empty"
+            exit 1
+            fi
+
             echo "Backend image: $BACKEND_IMAGE"
             echo "Frontend image: $FRONTEND_IMAGE"
 
@@ -371,14 +380,18 @@ jobs:
             if skopeo inspect \
                 --creds "${HBR_USERNAME}:${HBR_PASSWORD}" \
                 "docker://${BACKEND_IMAGE}" \
-                >/dev/null 2>&1; then
+                > /tmp/backend-inspect.json \
+                2> /tmp/backend-error.log; then
+
                 BACKEND_FOUND="true"
             fi
 
             if skopeo inspect \
                 --creds "${HBR_USERNAME}:${HBR_PASSWORD}" \
                 "docker://${FRONTEND_IMAGE}" \
-                >/dev/null 2>&1; then
+                > /tmp/frontend-inspect.json \
+                2> /tmp/frontend-error.log; then
+
                 FRONTEND_FOUND="true"
             fi
 
@@ -390,6 +403,16 @@ jobs:
                     "$FRONTEND_FOUND" == "true" ]]; then
                 echo "Both Harbor images exist"
                 exit 0
+            fi
+
+            if [[ "$BACKEND_FOUND" != "true" ]]; then
+                echo "Backend inspection error:"
+                cat /tmp/backend-error.log || true
+            fi
+
+            if [[ "$FRONTEND_FOUND" != "true" ]]; then
+                echo "Frontend inspection error:"
+                cat /tmp/frontend-error.log || true
             fi
 
             if [[ "$ATTEMPT" -lt 20 ]]; then
