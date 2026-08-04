@@ -1,0 +1,791 @@
+name: SDE CI-CD Pipeline
+
+# -------------------------------------------------------------------
+# Deployment use cases
+#
+# Developer Preview
+#   Branch: feature/**, bugfix/**, hotfix/**
+#   Trigger: automatic push
+#   Cluster: Int/AP6
+#   Values: values-dev.yaml
+#
+# Shared Development
+#   Branch: develop
+#   Trigger: manual, environment=dev-ap6
+#   Cluster: Int/AP6
+#   Values: values-dev.yaml
+#
+# Staging
+#   Branch: develop
+#   Trigger: manual, environment=staging
+#   Cluster: Int/AP6
+#   Values: values-staging.yaml
+#
+# Production
+#   Branch: release/**
+#   Trigger: manual, environment=prod
+#   Cluster: Arena Production
+#   Values: values-prod.yaml
+#
+# Docker images are built in the frontend and backend repositories.
+# This workflow only deploys image tags that already exist in Harbor.
+# -------------------------------------------------------------------
+
+on:
+  push:
+    branches:
+      - 'feature/**'
+      - 'bugfix/**'
+      - 'hotfix/**'
+      - ci-cd-branch
+
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Select the target environment for deployment"
+        required: true
+        default: dev-ap6
+        type: choice
+        options:
+          - dev-ap6
+          - staging
+          - prod
+
+      image_tag:
+        description: "Optional existing image tag for both backend and frontend"
+        required: false
+        type: string
+
+      backend_image_tag:
+        description: "Optional existing backend image tag; overrides the common image tag"
+        required: false
+        type: string
+
+      frontend_image_tag:
+        description: "Optional existing frontend image tag; overrides the common image tag"
+        required: false
+        type: string
+
+permissions:
+  contents: write
+  security-events: write
+  actions: read
+  id-token: write
+
+concurrency:
+  group: sde-cicd-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  CHART_PATH: charts/simpledataexchanger
+
+  DEV_VALUES_FILE: charts/simpledataexchanger/values-dev.yaml
+  STAGING_VALUES_FILE: charts/simpledataexchanger/values-staging.yaml
+  PROD_VALUES_FILE: charts/simpledataexchanger/values-prod.yaml
+
+  BACKEND_IMAGE_REPOSITORY: harbor-hub-shared.arena.3ascloud.de/arena2036/managed-simple-data-exchanger-backend
+  FRONTEND_IMAGE_REPOSITORY: harbor-hub-shared.arena.3ascloud.de/arena2036/managed-simple-data-exchanger-frontend
+
+  # Kubeconfig for the cluster where central Argo CD is installed.
+  CENTRAL_ARGOCD_VAULT_PATH: staging/infra/cluster-prod
+
+  VAULT_VERSION: "1.21.2"
+
+jobs:
+  # -----------------------------------------------------------------
+  # Validate the branch and environment combination.
+  # -----------------------------------------------------------------
+  validate-request:
+    name: Validate Deployment Request
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Validate request
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          EVENT_NAME="${{ github.event_name }}"
+          BRANCH_NAME="${{ github.ref_name }}"
+          TARGET_ENVIRONMENT="${{ github.event.inputs.environment }}"
+
+          echo "Event: $EVENT_NAME"
+          echo "Branch: $BRANCH_NAME"
+          echo "Environment: $TARGET_ENVIRONMENT"
+
+          if [[ "$EVENT_NAME" == "push" ]]; then
+            if [[ "$BRANCH_NAME" == "ci-cd-branch" ||
+                  "$BRANCH_NAME" == feature/* ||
+                  "$BRANCH_NAME" == bugfix/* ||
+                  "$BRANCH_NAME" == hotfix/* ]]; then
+
+              echo "Valid developer preview request"
+              exit 0
+            fi
+
+            echo "Automatic deployment is not allowed from $BRANCH_NAME"
+            exit 1
+          fi
+
+          if [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
+            if [[ "$BRANCH_NAME" == "develop" &&
+                  "$TARGET_ENVIRONMENT" == "dev-ap6" ]]; then
+
+              echo "Valid shared development request"
+              exit 0
+            fi
+
+            if [[ "$BRANCH_NAME" == "develop" &&
+                  "$TARGET_ENVIRONMENT" == "staging" ]]; then
+
+              echo "Valid staging request"
+              exit 0
+            fi
+
+            if [[ "$BRANCH_NAME" == release/* &&
+                  "$TARGET_ENVIRONMENT" == "prod" ]]; then
+
+              echo "Valid production request"
+              exit 0
+            fi
+
+            echo "Invalid branch/environment combination"
+            echo
+            echo "Allowed manual combinations:"
+            echo "  develop + dev-ap6"
+            echo "  develop + staging"
+            echo "  release/** + prod"
+            exit 1
+          fi
+
+          echo "Unsupported event: $EVENT_NAME"
+          exit 1
+
+  # -----------------------------------------------------------------
+  # Existing Helm repository CI checks.
+  #
+  # Each called workflow must contain:
+  #
+  # on:
+  #   workflow_call:
+  # -----------------------------------------------------------------
+  helm-lint:
+    name: SDE Lint and Test Charts
+    needs: validate-request
+    uses: ./.github/workflows/helm-lint.yml
+    secrets: inherit
+
+  kics:
+    name: KICS
+    needs: validate-request
+    uses: ./.github/workflows/kics.yml
+    secrets: inherit
+
+  trufflehog:
+    name: TruffleHog
+    needs: validate-request
+    uses: ./.github/workflows/trufflehog.yml
+    secrets: inherit
+
+  # -----------------------------------------------------------------
+  # Resolve image tags, values file and Argo CD template.
+  #
+  # Tag priority for manual runs:
+  #
+  # backend_image_tag / frontend_image_tag
+  #   -> image_tag
+  #   -> environment default
+  #
+  # Preview default:
+  #   feature/new-ui -> feature-new-ui
+  #
+  # Dev and staging default:
+  #   develop
+  #
+  # Production:
+  #   explicit tags are required.
+  # -----------------------------------------------------------------
+  resolve-deployment:
+    name: Resolve Deployment Configuration
+    needs:
+      - helm-lint
+      - kics
+      - trufflehog
+
+    runs-on: ubuntu-latest
+
+    outputs:
+      deployment_type: ${{ steps.resolve.outputs.deployment_type }}
+      values_file: ${{ steps.resolve.outputs.values_file }}
+      template_file: ${{ steps.resolve.outputs.template_file }}
+
+      backend_tag: ${{ steps.resolve.outputs.backend_tag }}
+      frontend_tag: ${{ steps.resolve.outputs.frontend_tag }}
+
+      application_name: ${{ steps.resolve.outputs.application_name }}
+      release_name: ${{ steps.resolve.outputs.release_name }}
+      target_branch: ${{ steps.resolve.outputs.target_branch }}
+
+      safe_branch: ${{ steps.resolve.outputs.safe_branch }}
+      namespace: ${{ steps.resolve.outputs.namespace }}
+
+      github_environment: ${{ steps.resolve.outputs.github_environment }}
+
+    steps:
+      - name: Resolve deployment
+        id: resolve
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          EVENT_NAME="${{ github.event_name }}"
+          BRANCH_NAME="${{ github.ref_name }}"
+          TARGET_ENVIRONMENT="${{ github.event.inputs.environment }}"
+
+          COMMON_TAG="${{ github.event.inputs.image_tag }}"
+          BACKEND_TAG="${{ github.event.inputs.backend_image_tag }}"
+          FRONTEND_TAG="${{ github.event.inputs.frontend_image_tag }}"
+
+          # Backend/frontend override the common tag.
+          if [[ -z "$BACKEND_TAG" ]]; then
+            BACKEND_TAG="$COMMON_TAG"
+          fi
+
+          if [[ -z "$FRONTEND_TAG" ]]; then
+            FRONTEND_TAG="$COMMON_TAG"
+          fi
+
+          # Docker-compatible branch tag.
+          # feature/new-ui becomes feature-new-ui.
+          BRANCH_SLUG="$(printf '%s' "$BRANCH_NAME" \
+            | tr '[:upper:]' '[:lower:]' \
+            | sed 's#[^a-z0-9._-]#-#g' \
+            | sed 's/--*/-/g' \
+            | sed 's/^-//' \
+            | sed 's/-$//' \
+            | cut -c1-100)"
+
+          # Kubernetes/DNS-compatible branch slug.
+          DNS_BRANCH_SLUG="$(printf '%s' "$BRANCH_NAME" \
+            | tr '[:upper:]' '[:lower:]' \
+            | sed 's#[^a-z0-9-]#-#g' \
+            | sed 's/--*/-/g' \
+            | sed 's/^-//' \
+            | sed 's/-$//' \
+            | cut -c1-35)"
+
+          if [[ -z "$BRANCH_SLUG" || -z "$DNS_BRANCH_SLUG" ]]; then
+            echo "Could not generate safe branch identifiers"
+            exit 1
+          fi
+
+          BRANCH_HASH="$(printf '%s' "$BRANCH_NAME" \
+            | sha256sum \
+            | cut -c1-7)"
+
+          SAFE_BRANCH="${DNS_BRANCH_SLUG}-${BRANCH_HASH}"
+
+          if [[ "$EVENT_NAME" == "push" ]]; then
+            DEPLOYMENT_TYPE="preview"
+            VALUES_FILE="$DEV_VALUES_FILE"
+            TEMPLATE_FILE=".github/argocd/sde-preview-app.yaml"
+
+            # Frontend/backend CI must publish this branch tag.
+            BACKEND_TAG="$BRANCH_SLUG"
+            FRONTEND_TAG="$BRANCH_SLUG"
+
+            APPLICATION_NAME="sde-${SAFE_BRANCH}"
+            RELEASE_NAME="sde-${SAFE_BRANCH}"
+            TARGET_BRANCH="$BRANCH_NAME"
+            NAMESPACE="sde-${SAFE_BRANCH}"
+            GITHUB_ENVIRONMENT="sde-preview"
+
+          elif [[ "$TARGET_ENVIRONMENT" == "dev-ap6" ]]; then
+            DEPLOYMENT_TYPE="shared-dev"
+            VALUES_FILE="$DEV_VALUES_FILE"
+            TEMPLATE_FILE=".github/argocd/sde-dev-app.yaml"
+
+            if [[ -z "$BACKEND_TAG" ]]; then
+              BACKEND_TAG="develop"
+            fi
+
+            if [[ -z "$FRONTEND_TAG" ]]; then
+              FRONTEND_TAG="develop"
+            fi
+
+            APPLICATION_NAME="sde-application-ap6"
+            RELEASE_NAME="sde"
+            TARGET_BRANCH="develop"
+            NAMESPACE="simple-data-exchanger"
+            GITHUB_ENVIRONMENT="sde-dev-ap6"
+
+          elif [[ "$TARGET_ENVIRONMENT" == "staging" ]]; then
+            DEPLOYMENT_TYPE="staging"
+            VALUES_FILE="$STAGING_VALUES_FILE"
+            TEMPLATE_FILE=".github/argocd/sde-staging-app.yaml"
+
+            if [[ -z "$BACKEND_TAG" ]]; then
+              BACKEND_TAG="develop"
+            fi
+
+            if [[ -z "$FRONTEND_TAG" ]]; then
+              FRONTEND_TAG="develop"
+            fi
+
+            APPLICATION_NAME="sde-application-staging"
+            RELEASE_NAME="sde-staging"
+            TARGET_BRANCH="develop"
+            NAMESPACE="simple-data-exchanger-staging"
+            GITHUB_ENVIRONMENT="sde-staging"
+
+          elif [[ "$TARGET_ENVIRONMENT" == "prod" ]]; then
+            DEPLOYMENT_TYPE="production"
+            VALUES_FILE="$PROD_VALUES_FILE"
+            TEMPLATE_FILE=".github/argocd/sde-prod-app.yaml"
+
+            # Production must use explicit existing image tags.
+            if [[ -z "$BACKEND_TAG" || -z "$FRONTEND_TAG" ]]; then
+              echo "Production requires backend and frontend image tags"
+              echo "Provide:"
+              echo "  image_tag"
+              echo "or:"
+              echo "  backend_image_tag and frontend_image_tag"
+              exit 1
+            fi
+
+            APPLICATION_NAME="sde-application-prod"
+            RELEASE_NAME="sde"
+            TARGET_BRANCH="$BRANCH_NAME"
+            NAMESPACE="simple-data-exchanger"
+            GITHUB_ENVIRONMENT="sde-production"
+
+          else
+            echo "Unable to resolve deployment configuration"
+            exit 1
+          fi
+
+          {
+            echo "deployment_type=$DEPLOYMENT_TYPE"
+            echo "values_file=$VALUES_FILE"
+            echo "template_file=$TEMPLATE_FILE"
+
+            echo "backend_tag=$BACKEND_TAG"
+            echo "frontend_tag=$FRONTEND_TAG"
+
+            echo "application_name=$APPLICATION_NAME"
+            echo "release_name=$RELEASE_NAME"
+            echo "target_branch=$TARGET_BRANCH"
+
+            echo "safe_branch=$SAFE_BRANCH"
+            echo "namespace=$NAMESPACE"
+
+            echo "github_environment=$GITHUB_ENVIRONMENT"
+          } >> "$GITHUB_OUTPUT"
+
+          echo "Deployment: $DEPLOYMENT_TYPE"
+          echo "Values file: $VALUES_FILE"
+          echo "Application: $APPLICATION_NAME"
+          echo "Backend image: $BACKEND_IMAGE_REPOSITORY:$BACKEND_TAG"
+          echo "Frontend image: $FRONTEND_IMAGE_REPOSITORY:$FRONTEND_TAG"
+
+  # -----------------------------------------------------------------
+  # Verify that the selected images already exist in Harbor.
+  #
+  # This job does not build any image.
+  # -----------------------------------------------------------------
+  verify-images:
+    name: Verify Existing Harbor Images
+    needs: resolve-deployment
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Install skopeo
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          sudo apt-get update
+          sudo apt-get install -y skopeo
+
+          skopeo --version
+
+      - name: Verify backend image
+        env:
+          IMAGE: ${{ env.BACKEND_IMAGE_REPOSITORY }}:${{ needs.resolve-deployment.outputs.backend_tag }}
+
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          echo "Checking backend image: $IMAGE"
+
+          skopeo inspect \
+            --creds "${{ secrets.HBR_USERNAME }}:${{ secrets.HBR_PASSWORD }}" \
+            "docker://${IMAGE}" \
+            > /tmp/backend-image.json
+
+          echo "Backend image exists"
+
+      - name: Verify frontend image
+        env:
+          IMAGE: ${{ env.FRONTEND_IMAGE_REPOSITORY }}:${{ needs.resolve-deployment.outputs.frontend_tag }}
+
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          echo "Checking frontend image: $IMAGE"
+
+          skopeo inspect \
+            --creds "${{ secrets.HBR_USERNAME }}:${{ secrets.HBR_PASSWORD }}" \
+            "docker://${IMAGE}" \
+            > /tmp/frontend-image.json
+
+          echo "Frontend image exists"
+
+      - name: Write image summary
+        shell: bash
+        run: |
+          {
+            echo "## Verified SDE images"
+            echo
+            echo "| Component | Image |"
+            echo "|---|---|"
+            echo "| Backend | \`${BACKEND_IMAGE_REPOSITORY}:${{ needs.resolve-deployment.outputs.backend_tag }}\` |"
+            echo "| Frontend | \`${FRONTEND_IMAGE_REPOSITORY}:${{ needs.resolve-deployment.outputs.frontend_tag }}\` |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # -----------------------------------------------------------------
+  # Update the selected environment values file.
+  # -----------------------------------------------------------------
+  update-image-values:
+    name: Update Helm Image Values
+    needs:
+      - resolve-deployment
+      - verify-images
+
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout selected branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.resolve-deployment.outputs.target_branch }}
+          fetch-depth: 0
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
+
+      - name: Install yq
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          sudo wget -qO /usr/local/bin/yq \
+            https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
+
+          sudo chmod +x /usr/local/bin/yq
+
+          yq --version
+
+      - name: Update backend and frontend images
+        env:
+          VALUES_FILE: ${{ needs.resolve-deployment.outputs.values_file }}
+
+          BACKEND_TAG: ${{ needs.resolve-deployment.outputs.backend_tag }}
+          FRONTEND_TAG: ${{ needs.resolve-deployment.outputs.frontend_tag }}
+
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ ! -f "$VALUES_FILE" ]]; then
+            echo "Values file not found: $VALUES_FILE"
+            exit 1
+          fi
+
+          yq -i \
+            '.backend.image.repository = strenv(BACKEND_IMAGE_REPOSITORY)' \
+            "$VALUES_FILE"
+
+          yq -i \
+            '.backend.image.tag = strenv(BACKEND_TAG)' \
+            "$VALUES_FILE"
+
+          yq -i \
+            '.frontend.image.repository = strenv(FRONTEND_IMAGE_REPOSITORY)' \
+            "$VALUES_FILE"
+
+          yq -i \
+            '.frontend.image.tag = strenv(FRONTEND_TAG)' \
+            "$VALUES_FILE"
+
+          echo "Updated values:"
+          git diff -- "$VALUES_FILE"
+
+      - name: Validate updated Helm chart
+        env:
+          VALUES_FILE: ${{ needs.resolve-deployment.outputs.values_file }}
+
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          helm dependency update "$CHART_PATH"
+
+          helm lint \
+            "$CHART_PATH" \
+            --with-subcharts \
+            --values "$VALUES_FILE"
+
+          helm template sde \
+            "$CHART_PATH" \
+            --namespace "${{ needs.resolve-deployment.outputs.namespace }}" \
+            --values "$VALUES_FILE" \
+            > /tmp/sde-rendered.yaml
+
+          if [[ ! -s /tmp/sde-rendered.yaml ]]; then
+            echo "Rendered Helm manifest is empty"
+            exit 1
+          fi
+
+      - name: Commit updated image values
+        env:
+          VALUES_FILE: ${{ needs.resolve-deployment.outputs.values_file }}
+          BACKEND_TAG: ${{ needs.resolve-deployment.outputs.backend_tag }}
+          FRONTEND_TAG: ${{ needs.resolve-deployment.outputs.frontend_tag }}
+          TARGET_BRANCH: ${{ needs.resolve-deployment.outputs.target_branch }}
+
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+
+          git add -f "$VALUES_FILE"
+
+          if git diff --cached --quiet; then
+            echo "No Helm values changes to commit"
+            exit 0
+          fi
+
+          git commit \
+            -m "chore: deploy backend ${BACKEND_TAG}, frontend ${FRONTEND_TAG} [skip ci]"
+
+          git pull --rebase origin "$TARGET_BRANCH"
+          git push origin "HEAD:${TARGET_BRANCH}"
+
+  # -----------------------------------------------------------------
+  # Generate and apply the correct Argo CD Application.
+  #
+  # GitHub Actions connects only to the cluster hosting central
+  # Argo CD. The target deployment cluster is defined inside each
+  # Argo CD Application:
+  #
+  # Preview/shared development/staging -> arenax-ap6
+  # Production                         -> arenax-prod
+  # -----------------------------------------------------------------
+  deploy:
+    name: Deploy Through Central Argo CD
+    needs:
+      - resolve-deployment
+      - update-image-values
+
+    runs-on: ubuntu-latest
+
+    environment:
+      name: ${{ needs.resolve-deployment.outputs.github_environment }}
+
+    steps:
+      - name: Checkout latest deployment branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.resolve-deployment.outputs.target_branch }}
+          fetch-depth: 0
+
+      - name: Install kubectl, yq and Vault
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          KUBECTL_VERSION="$(curl -L -s \
+            https://dl.k8s.io/release/stable.txt)"
+
+          curl -LO -s \
+            "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl"
+
+          chmod +x kubectl
+          sudo mv kubectl /usr/local/bin/kubectl
+
+          sudo wget -qO /usr/local/bin/yq \
+            https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
+
+          sudo chmod +x /usr/local/bin/yq
+
+          curl -sSL \
+            "https://releases.hashicorp.com/vault/${VAULT_VERSION}/vault_${VAULT_VERSION}_linux_amd64.zip" \
+            -o vault.zip
+
+          unzip -q vault.zip
+
+          chmod +x vault
+          sudo mv vault /usr/local/bin/vault
+
+          kubectl version --client
+          yq --version
+          vault version
+
+      - name: Connect to central Argo CD cluster
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          mkdir -p "$HOME/.kube"
+
+          export VAULT_ADDR="${{ secrets.VAULT_ADDR_PROD }}"
+          export VAULT_TOKEN="${{ secrets.VAULT_TOKEN_PROD }}"
+
+          vault kv get \
+            -field=config \
+            "$CENTRAL_ARGOCD_VAULT_PATH" \
+            > "$HOME/.kube/config"
+
+          chmod 600 "$HOME/.kube/config"
+
+          CONTEXT="$(yq e \
+            '.current-context' \
+            "$HOME/.kube/config")"
+
+          if [[ -z "$CONTEXT" || "$CONTEXT" == "null" ]]; then
+            echo "Central Argo CD Kubernetes context was not found"
+            exit 1
+          fi
+
+          kubectl --context="$CONTEXT" cluster-info
+
+          echo "ARGOCD_CONTEXT=$CONTEXT" >> "$GITHUB_ENV"
+
+      - name: Generate Argo CD Application
+        env:
+          DEPLOYMENT_TYPE: ${{ needs.resolve-deployment.outputs.deployment_type }}
+          TEMPLATE_FILE: ${{ needs.resolve-deployment.outputs.template_file }}
+
+          APPLICATION_NAME: ${{ needs.resolve-deployment.outputs.application_name }}
+          RELEASE_NAME: ${{ needs.resolve-deployment.outputs.release_name }}
+          TARGET_BRANCH: ${{ needs.resolve-deployment.outputs.target_branch }}
+          NAMESPACE: ${{ needs.resolve-deployment.outputs.namespace }}
+
+          BACKEND_TAG: ${{ needs.resolve-deployment.outputs.backend_tag }}
+          FRONTEND_TAG: ${{ needs.resolve-deployment.outputs.frontend_tag }}
+
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          GENERATED="/tmp/sde-application.yaml"
+
+          if [[ ! -f "$TEMPLATE_FILE" ]]; then
+            echo "Argo CD template not found: $TEMPLATE_FILE"
+            exit 1
+          fi
+
+          cp "$TEMPLATE_FILE" "$GENERATED"
+
+          sed -i \
+            "s|REPLACE_APPLICATION|${APPLICATION_NAME}|g" \
+            "$GENERATED"
+
+          sed -i \
+            "s|REPLACE_BACKEND_TAG|${BACKEND_TAG}|g" \
+            "$GENERATED"
+
+          sed -i \
+            "s|REPLACE_FRONTEND_TAG|${FRONTEND_TAG}|g" \
+            "$GENERATED"
+
+          # Preview placeholders.
+          sed -i \
+            "s|REPLACE_BRANCH_NAME|${TARGET_BRANCH}|g" \
+            "$GENERATED"
+
+          sed -i \
+            "s|REPLACE_RELEASE_NAME|${RELEASE_NAME}|g" \
+            "$GENERATED"
+
+          sed -i \
+            "s|REPLACE_NAMESPACE|${NAMESPACE}|g" \
+            "$GENERATED"
+
+          # Production placeholder.
+          sed -i \
+            "s|REPLACE_BRANCH|${TARGET_BRANCH}|g" \
+            "$GENERATED"
+
+          if grep -q 'REPLACE_' "$GENERATED"; then
+            echo "Unresolved placeholders found:"
+            grep 'REPLACE_' "$GENERATED"
+            exit 1
+          fi
+
+          kubectl apply \
+            --dry-run=client \
+            --validate=false \
+            -f "$GENERATED"
+
+          echo "Generated Argo CD Application:"
+          cat "$GENERATED"
+
+      - name: Apply Argo CD Application
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          kubectl \
+            --context="$ARGOCD_CONTEXT" \
+            apply \
+            -f /tmp/sde-application.yaml
+
+          kubectl \
+            --context="$ARGOCD_CONTEXT" \
+            get application \
+            "${{ needs.resolve-deployment.outputs.application_name }}" \
+            -n argocd
+
+      - name: Write deployment summary
+        shell: bash
+        run: |
+          {
+            echo "## SDE deployment"
+            echo
+            echo "| Property | Value |"
+            echo "|---|---|"
+            echo "| Deployment | \`${{ needs.resolve-deployment.outputs.deployment_type }}\` |"
+            echo "| Application | \`${{ needs.resolve-deployment.outputs.application_name }}\` |"
+            echo "| Namespace | \`${{ needs.resolve-deployment.outputs.namespace }}\` |"
+            echo "| Branch | \`${{ needs.resolve-deployment.outputs.target_branch }}\` |"
+            echo "| Backend tag | \`${{ needs.resolve-deployment.outputs.backend_tag }}\` |"
+            echo "| Frontend tag | \`${{ needs.resolve-deployment.outputs.frontend_tag }}\` |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # -----------------------------------------------------------------
+  # Release the Helm chart after production deployment.
+  #
+  # chart-release.yml must support workflow_call.
+  # -----------------------------------------------------------------
+  chart-release:
+    name: Release Helm Chart
+    needs:
+      - resolve-deployment
+      - deploy
+
+    if: |
+      github.event_name == 'workflow_dispatch' &&
+      github.event.inputs.environment == 'prod' &&
+      startsWith(github.ref_name, 'release/')
+
+    uses: ./.github/workflows/chart-release.yml
+    secrets: inherit

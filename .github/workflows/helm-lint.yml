@@ -30,7 +30,8 @@ on:
   pull_request:
       paths:
         - charts/**
-
+        
+  workflow_call:
   workflow_dispatch:
       inputs:
         node_image:
