@@ -1,0 +1,52 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+
+metadata:
+  name: REPLACE_APPLICATION
+  namespace: argocd
+
+  labels:
+    app.kubernetes.io/name: sde
+    app.kubernetes.io/component: production
+    app.kubernetes.io/managed-by: github-actions
+
+  annotations:
+    environment.sde/type: production
+
+spec:
+  project: simple-data-exchanger
+
+  source:
+    repoURL: https://github.com/ARENA2036/managed-simple-data-exchanger.git
+    targetRevision: REPLACE_BRANCH
+    path: charts/simpledataexchanger
+
+    helm:
+      releaseName: sde
+
+      valueFiles:
+        - values-prod.yaml
+
+      parameters:
+        - name: backend.image.tag
+          value: REPLACE_BACKEND_TAG
+          forceString: true
+
+        - name: frontend.image.tag
+          value: REPLACE_FRONTEND_TAG
+          forceString: true
+
+  destination:
+    name: arenax-prod
+    namespace: simple-data-exchanger
+
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+
+    syncOptions:
+      - CreateNamespace=true
+      - PruneLast=true
+
+  revisionHistoryLimit: 3
