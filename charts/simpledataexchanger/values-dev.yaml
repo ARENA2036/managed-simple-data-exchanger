@@ -44,7 +44,7 @@ backend:
     repository: harbor-hub-shared.arena.3ascloud.de/arena2036/managed-simple-data-exchanger-backend
     pullPolicy: Always
   # Overrides the image tag whose default is the chart appVersion.
-    tag: ""
+    tag: latest
 
   imagePullSecrets: []
 
@@ -228,7 +228,7 @@ frontend:
     repository: harbor-hub-shared.arena.3ascloud.de/arena2036/managed-simple-data-exchanger-frontend
     pullPolicy: Always
       # Overrides the image tag whose default is the chart appVersion.
-    tag: ""
+    tag: latest
   imagePullSecrets: []
   nameOverride: ""
   fullnameOverride: ""

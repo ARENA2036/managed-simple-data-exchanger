@@ -343,54 +343,65 @@ jobs:
       # slightly different times.
       - name: Verify backend and frontend images
         env:
-          BACKEND_TAG: ${{ needs.resolve-deployment.outputs.backend_tag }}
-          FRONTEND_TAG: ${{ needs.resolve-deployment.outputs.frontend_tag }}
+            HBR_USERNAME: ${{ secrets.HBR_USERNAME }}
+            HBR_PASSWORD: ${{ secrets.HBR_PASSWORD }}
+
+            BACKEND_TAG: ${{ needs.resolve-deployment.outputs.backend_tag }}
+            FRONTEND_TAG: ${{ needs.resolve-deployment.outputs.frontend_tag }}
 
         shell: bash
         run: |
-          set -euo pipefail
+            set -euo pipefail
 
-          BACKEND_IMAGE="${BACKEND_IMAGE_REPOSITORY}:${BACKEND_TAG}"
-          FRONTEND_IMAGE="${FRONTEND_IMAGE_REPOSITORY}:${FRONTEND_TAG}"
+            BACKEND_IMAGE="${BACKEND_IMAGE_REPOSITORY}:${BACKEND_TAG}"
+            FRONTEND_IMAGE="${FRONTEND_IMAGE_REPOSITORY}:${FRONTEND_TAG}"
 
-          for ATTEMPT in {1..20}; do
-            BACKEND_FOUND=false
-            FRONTEND_FOUND=false
+            if [[ -z "$HBR_USERNAME" || -z "$HBR_PASSWORD" ]]; then
+            echo "Harbor credentials are missing"
+            exit 1
+            fi
+
+            echo "Backend image: $BACKEND_IMAGE"
+            echo "Frontend image: $FRONTEND_IMAGE"
+
+            for ATTEMPT in {1..20}; do
+            BACKEND_FOUND="false"
+            FRONTEND_FOUND="false"
 
             if skopeo inspect \
-              --creds "${{ secrets.HBR_USERNAME }}:${{ secrets.HBR_PASSWORD }}" \
-              "docker://${BACKEND_IMAGE}" \
-              >/dev/null 2>&1; then
-
-              BACKEND_FOUND=true
+                --creds "${HBR_USERNAME}:${HBR_PASSWORD}" \
+                "docker://${BACKEND_IMAGE}" \
+                >/dev/null 2>&1; then
+                BACKEND_FOUND="true"
             fi
 
             if skopeo inspect \
-              --creds "${{ secrets.HBR_USERNAME }}:${{ secrets.HBR_PASSWORD }}" \
-              "docker://${FRONTEND_IMAGE}" \
-              >/dev/null 2>&1; then
-
-              FRONTEND_FOUND=true
+                --creds "${HBR_USERNAME}:${HBR_PASSWORD}" \
+                "docker://${FRONTEND_IMAGE}" \
+                >/dev/null 2>&1; then
+                FRONTEND_FOUND="true"
             fi
 
             echo "Attempt ${ATTEMPT}/20"
-            echo "Backend found: $BACKEND_FOUND"
-            echo "Frontend found: $FRONTEND_FOUND"
+            echo "Backend found: ${BACKEND_FOUND}"
+            echo "Frontend found: ${FRONTEND_FOUND}"
 
-            if [[ "$BACKEND_FOUND" == true &&
-                  "$FRONTEND_FOUND" == true ]]; then
-
-              echo "Both Harbor images exist"
-              exit 0
+            if [[ "$BACKEND_FOUND" == "true" &&
+                    "$FRONTEND_FOUND" == "true" ]]; then
+                echo "Both Harbor images exist"
+                exit 0
             fi
 
-            sleep 30
-          done
+            if [[ "$ATTEMPT" -lt 20 ]]; then
+                echo "Waiting 30 seconds before retry..."
+                sleep 30
+            fi
+            done
 
-          echo "Required images were not found"
-          echo "Backend: $BACKEND_IMAGE"
-          echo "Frontend: $FRONTEND_IMAGE"
-          exit 1
+            echo "Required Harbor images were not found"
+            echo "Backend: $BACKEND_IMAGE"
+            echo "Frontend: $FRONTEND_IMAGE"
+            exit 1
 
       - name: Write image summary
         shell: bash
