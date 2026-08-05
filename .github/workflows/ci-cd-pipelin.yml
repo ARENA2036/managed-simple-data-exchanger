@@ -10,7 +10,7 @@ name: SDE CI-CD Pipeline
 #
 # Developer Preview:
 #   feature/**, bugfix/**, hotfix/**, chore/**, docs/**
-#   Automatic on push
+#   Automatic after frontend/backend CI
 #   Cluster: arenax-ap6
 #   Values: values-dev.yaml
 #
@@ -36,6 +36,12 @@ name: SDE CI-CD Pipeline
 # Images must already exist in Harbor.
 
 on:
+  # Triggered by frontend and backend repositories after image creation.
+  repository_dispatch:
+    types:
+      - sde-preview-image-ready
+
+  # Direct Helm repository preview testing.
   push:
     branches:
       - "feature/**"
@@ -82,7 +88,7 @@ permissions:
   issues: write
 
 concurrency:
-  group: sde-deployment-${{ github.ref }}
+  group: sde-deployment-${{ github.event.client_payload.branch || github.ref_name }}
   cancel-in-progress: false
 
 env:
@@ -127,6 +133,8 @@ jobs:
       frontend_tag: ${{ steps.resolve.outputs.frontend_tag }}
 
       target_branch: ${{ steps.resolve.outputs.target_branch }}
+      source_branch: ${{ steps.resolve.outputs.source_branch }}
+
       application_name: ${{ steps.resolve.outputs.application_name }}
       release_name: ${{ steps.resolve.outputs.release_name }}
       namespace: ${{ steps.resolve.outputs.namespace }}
@@ -140,14 +148,54 @@ jobs:
           set -euo pipefail
 
           EVENT_NAME="${{ github.event_name }}"
-          BRANCH_NAME="${{ github.ref_name }}"
-          TARGET_ENVIRONMENT="${{ github.event.inputs.environment }}"
 
-          COMMON_TAG="${{ github.event.inputs.image_tag }}"
-          BACKEND_TAG="${{ github.event.inputs.backend_image_tag }}"
-          FRONTEND_TAG="${{ github.event.inputs.frontend_image_tag }}"
+          # ---------------------------------------------------------
+          # Cross-repository event from frontend/backend CI.
+          # ---------------------------------------------------------
+          if [[ "$EVENT_NAME" == "repository_dispatch" ]]; then
+            BRANCH_NAME="${{ github.event.client_payload.branch }}"
+            DISPATCH_SOURCE="${{ github.event.client_payload.source }}"
+            DISPATCH_IMAGE_TAG="${{ github.event.client_payload.image_tag }}"
 
-          # Component tags override the common image tag.
+            TARGET_ENVIRONMENT="dev-ap6"
+
+            COMMON_TAG="$DISPATCH_IMAGE_TAG"
+            BACKEND_TAG="$DISPATCH_IMAGE_TAG"
+            FRONTEND_TAG="$DISPATCH_IMAGE_TAG"
+
+          # ---------------------------------------------------------
+          # Push or manual event in the Helm repository.
+          # ---------------------------------------------------------
+          else
+            BRANCH_NAME="${{ github.ref_name }}"
+            DISPATCH_SOURCE=""
+            DISPATCH_IMAGE_TAG=""
+
+            TARGET_ENVIRONMENT="${{ github.event.inputs.environment }}"
+
+            COMMON_TAG="${{ github.event.inputs.image_tag }}"
+            BACKEND_TAG="${{ github.event.inputs.backend_image_tag }}"
+            FRONTEND_TAG="${{ github.event.inputs.frontend_image_tag }}"
+          fi
+
+          echo "Event: $EVENT_NAME"
+          echo "Application branch: $BRANCH_NAME"
+          echo "Dispatch source: $DISPATCH_SOURCE"
+          echo "Dispatch image tag: $DISPATCH_IMAGE_TAG"
+          echo "Target environment: $TARGET_ENVIRONMENT"
+
+          if [[ -z "$BRANCH_NAME" ]]; then
+            echo "Branch name is empty"
+            exit 1
+          fi
+
+          if [[ "$EVENT_NAME" == "repository_dispatch" &&
+                -z "$DISPATCH_IMAGE_TAG" ]]; then
+            echo "repository_dispatch image tag is empty"
+            exit 1
+          fi
+
+          # Component-specific tags override the common image tag.
           if [[ -z "$BACKEND_TAG" ]]; then
             BACKEND_TAG="$COMMON_TAG"
           fi
@@ -156,7 +204,7 @@ jobs:
             FRONTEND_TAG="$COMMON_TAG"
           fi
 
-          # Docker tag:
+          # Docker-compatible branch tag.
           # feature/new-ui -> feature-new-ui
           BRANCH_TAG="$(printf '%s' "$BRANCH_NAME" \
             | tr '[:upper:]' '[:lower:]' \
@@ -166,7 +214,7 @@ jobs:
             | sed 's/-$//' \
             | cut -c1-100)"
 
-          # Kubernetes-safe preview identifier.
+          # Kubernetes/DNS-safe preview identifier.
           DNS_BRANCH="$(printf '%s' "$BRANCH_NAME" \
             | tr '[:upper:]' '[:lower:]' \
             | sed 's#[^a-z0-9-]#-#g' \
@@ -187,9 +235,15 @@ jobs:
           SAFE_BRANCH="${DNS_BRANCH}-${BRANCH_HASH}"
 
           # ---------------------------------------------------------
-          # Automatic developer preview.
+          # Automatic Developer Preview.
+          #
+          # Triggered by:
+          #   - Push in Helm repository
+          #   - repository_dispatch from frontend/backend CI
           # ---------------------------------------------------------
-          if [[ "$EVENT_NAME" == "push" ]]; then
+          if [[ "$EVENT_NAME" == "push" ||
+                "$EVENT_NAME" == "repository_dispatch" ]]; then
+
             if [[ "$BRANCH_NAME" != "ci-cd-branch" &&
                   "$BRANCH_NAME" != feature/* &&
                   "$BRANCH_NAME" != bugfix/* &&
@@ -205,17 +259,27 @@ jobs:
             VALUES_FILE="$DEV_VALUES_FILE"
             TEMPLATE_FILE=".github/argocd/sde-preview-app.yaml"
 
-            # Matching tags must already exist in both source repos.
-            BACKEND_TAG="$BRANCH_TAG"
-            FRONTEND_TAG="$BRANCH_TAG"
+            if [[ "$EVENT_NAME" == "repository_dispatch" ]]; then
+              # Frontend and backend publish the same normalized branch tag.
+              BACKEND_TAG="$DISPATCH_IMAGE_TAG"
+              FRONTEND_TAG="$DISPATCH_IMAGE_TAG"
 
-            TARGET_BRANCH="$BRANCH_NAME"
+              # repository_dispatch always runs from the Helm default branch.
+              # Use the current Helm branch for checkout and Argo CD.
+              TARGET_BRANCH="${{ github.ref_name }}"
+            else
+              BACKEND_TAG="$BRANCH_TAG"
+              FRONTEND_TAG="$BRANCH_TAG"
+
+              TARGET_BRANCH="$BRANCH_NAME"
+            fi
+
             APPLICATION_NAME="sde-${SAFE_BRANCH}"
             RELEASE_NAME="sde-${SAFE_BRANCH}"
             NAMESPACE="sde-${SAFE_BRANCH}"
 
           # ---------------------------------------------------------
-          # Manual shared development deployment.
+          # Manual Shared Development deployment.
           # ---------------------------------------------------------
           elif [[ "$EVENT_NAME" == "workflow_dispatch" &&
                   "$TARGET_ENVIRONMENT" == "dev-ap6" &&
@@ -239,7 +303,7 @@ jobs:
             NAMESPACE="simple-data-exchanger"
 
           # ---------------------------------------------------------
-          # Manual staging deployment.
+          # Manual Staging deployment.
           # ---------------------------------------------------------
           elif [[ "$EVENT_NAME" == "workflow_dispatch" &&
                   "$TARGET_ENVIRONMENT" == "staging" &&
@@ -263,7 +327,7 @@ jobs:
             NAMESPACE="simple-data-exchanger"
 
           # ---------------------------------------------------------
-          # Manual production deployment.
+          # Manual Production deployment.
           # ---------------------------------------------------------
           elif [[ "$EVENT_NAME" == "workflow_dispatch" &&
                   "$TARGET_ENVIRONMENT" == "prod" &&
@@ -273,7 +337,6 @@ jobs:
             VALUES_FILE="$PROD_VALUES_FILE"
             TEMPLATE_FILE=".github/argocd/sde-prod-app.yaml"
 
-            # Do not use the Helm repository SHA as an image tag.
             if [[ -z "$BACKEND_TAG" || -z "$FRONTEND_TAG" ]]; then
               echo "Production requires existing image tags"
               echo
@@ -292,10 +355,16 @@ jobs:
             echo "Invalid branch/environment combination"
             echo
             echo "Allowed deployments:"
+            echo "  repository_dispatch for preview branches"
             echo "  push feature/**, bugfix/**, hotfix/**, chore/**, docs/**"
             echo "  develop + dev-ap6"
             echo "  develop + staging"
             echo "  release/** + prod"
+            exit 1
+          fi
+
+          if [[ -z "$BACKEND_TAG" || -z "$FRONTEND_TAG" ]]; then
+            echo "Resolved backend or frontend image tag is empty"
             exit 1
           fi
 
@@ -308,6 +377,8 @@ jobs:
             echo "frontend_tag=$FRONTEND_TAG"
 
             echo "target_branch=$TARGET_BRANCH"
+            echo "source_branch=$BRANCH_NAME"
+
             echo "application_name=$APPLICATION_NAME"
             echo "release_name=$RELEASE_NAME"
             echo "namespace=$NAMESPACE"
@@ -315,6 +386,8 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
           echo "Deployment: $DEPLOYMENT_TYPE"
+          echo "Source branch: $BRANCH_NAME"
+          echo "Helm branch: $TARGET_BRANCH"
           echo "Values file: $VALUES_FILE"
           echo "Backend: $BACKEND_IMAGE_REPOSITORY:$BACKEND_TAG"
           echo "Frontend: $FRONTEND_IMAGE_REPOSITORY:$FRONTEND_TAG"
@@ -339,60 +412,56 @@ jobs:
 
           skopeo --version
 
-      # Retry because frontend/backend builds can complete at
+      # Retry because frontend/backend builds may finish at
       # slightly different times.
-      # Retry because frontend and backend builds may finish at different times.
-    # Retry because frontend and backend builds may finish at different times.
       - name: Verify backend and frontend images
         env:
-            HBR_USERNAME: ${{ secrets.HBR_USERNAME }}
-            HBR_PASSWORD: ${{ secrets.HBR_PASSWORD }}
+          HBR_USERNAME: ${{ secrets.HBR_USERNAME }}
+          HBR_PASSWORD: ${{ secrets.HBR_PASSWORD }}
 
-            # BACKEND_TAG: ${{ needs.resolve-deployment.outputs.backend_tag }}
-            # FRONTEND_TAG: ${{ needs.resolve-deployment.outputs.frontend_tag }}
-            BACKEND_TAG: "latest"
-            FRONTEND_TAG: "latest"
+          BACKEND_TAG: ${{ needs.resolve-deployment.outputs.backend_tag }}
+          FRONTEND_TAG: ${{ needs.resolve-deployment.outputs.frontend_tag }}
 
         shell: bash
         run: |
-            set -euo pipefail
+          set -euo pipefail
 
-            BACKEND_IMAGE="${BACKEND_IMAGE_REPOSITORY}:${BACKEND_TAG}"
-            FRONTEND_IMAGE="${FRONTEND_IMAGE_REPOSITORY}:${FRONTEND_TAG}"
+          BACKEND_IMAGE="${BACKEND_IMAGE_REPOSITORY}:${BACKEND_TAG}"
+          FRONTEND_IMAGE="${FRONTEND_IMAGE_REPOSITORY}:${FRONTEND_TAG}"
 
-            if [[ -z "$HBR_USERNAME" || -z "$HBR_PASSWORD" ]]; then
+          if [[ -z "$HBR_USERNAME" || -z "$HBR_PASSWORD" ]]; then
             echo "Harbor credentials are missing"
             exit 1
-            fi
+          fi
 
-            if [[ -z "$BACKEND_TAG" || -z "$FRONTEND_TAG" ]]; then
+          if [[ -z "$BACKEND_TAG" || -z "$FRONTEND_TAG" ]]; then
             echo "Backend or frontend image tag is empty"
             exit 1
-            fi
+          fi
 
-            echo "Backend image: $BACKEND_IMAGE"
-            echo "Frontend image: $FRONTEND_IMAGE"
+          echo "Backend image: $BACKEND_IMAGE"
+          echo "Frontend image: $FRONTEND_IMAGE"
 
-            for ATTEMPT in {1..20}; do
+          for ATTEMPT in {1..20}; do
             BACKEND_FOUND="false"
             FRONTEND_FOUND="false"
 
             if skopeo inspect \
-                --creds "${HBR_USERNAME}:${HBR_PASSWORD}" \
-                "docker://${BACKEND_IMAGE}" \
-                > /tmp/backend-inspect.json \
-                2> /tmp/backend-error.log; then
+              --creds "${HBR_USERNAME}:${HBR_PASSWORD}" \
+              "docker://${BACKEND_IMAGE}" \
+              > /tmp/backend-inspect.json \
+              2> /tmp/backend-error.log; then
 
-                BACKEND_FOUND="true"
+              BACKEND_FOUND="true"
             fi
 
             if skopeo inspect \
-                --creds "${HBR_USERNAME}:${HBR_PASSWORD}" \
-                "docker://${FRONTEND_IMAGE}" \
-                > /tmp/frontend-inspect.json \
-                2> /tmp/frontend-error.log; then
+              --creds "${HBR_USERNAME}:${HBR_PASSWORD}" \
+              "docker://${FRONTEND_IMAGE}" \
+              > /tmp/frontend-inspect.json \
+              2> /tmp/frontend-error.log; then
 
-                FRONTEND_FOUND="true"
+              FRONTEND_FOUND="true"
             fi
 
             echo "Attempt ${ATTEMPT}/20"
@@ -400,31 +469,32 @@ jobs:
             echo "Frontend found: ${FRONTEND_FOUND}"
 
             if [[ "$BACKEND_FOUND" == "true" &&
-                    "$FRONTEND_FOUND" == "true" ]]; then
-                echo "Both Harbor images exist"
-                exit 0
+                  "$FRONTEND_FOUND" == "true" ]]; then
+
+              echo "Both Harbor images exist"
+              exit 0
             fi
 
             if [[ "$BACKEND_FOUND" != "true" ]]; then
-                echo "Backend inspection error:"
-                cat /tmp/backend-error.log || true
+              echo "Backend inspection error:"
+              cat /tmp/backend-error.log || true
             fi
 
             if [[ "$FRONTEND_FOUND" != "true" ]]; then
-                echo "Frontend inspection error:"
-                cat /tmp/frontend-error.log || true
+              echo "Frontend inspection error:"
+              cat /tmp/frontend-error.log || true
             fi
 
             if [[ "$ATTEMPT" -lt 20 ]]; then
-                echo "Waiting 30 seconds before retry..."
-                sleep 30
+              echo "Waiting 30 seconds before retry..."
+              sleep 30
             fi
-            done
+          done
 
-            echo "Required Harbor images were not found"
-            echo "Backend: $BACKEND_IMAGE"
-            echo "Frontend: $FRONTEND_IMAGE"
-            exit 1
+          echo "Required Harbor images were not found"
+          echo "Backend: $BACKEND_IMAGE"
+          echo "Frontend: $FRONTEND_IMAGE"
+          exit 1
 
       - name: Write image summary
         shell: bash
@@ -638,8 +708,12 @@ jobs:
           TEMPLATE_FILE: ${{ needs.resolve-deployment.outputs.template_file }}
           APPLICATION_NAME: ${{ needs.resolve-deployment.outputs.application_name }}
           RELEASE_NAME: ${{ needs.resolve-deployment.outputs.release_name }}
+
           TARGET_BRANCH: ${{ needs.resolve-deployment.outputs.target_branch }}
+          SOURCE_BRANCH: ${{ needs.resolve-deployment.outputs.source_branch }}
+
           TARGET_NAMESPACE: ${{ needs.resolve-deployment.outputs.namespace }}
+
           BACKEND_TAG: ${{ needs.resolve-deployment.outputs.backend_tag }}
           FRONTEND_TAG: ${{ needs.resolve-deployment.outputs.frontend_tag }}
 
@@ -652,7 +726,8 @@ jobs:
           cp "$TEMPLATE_FILE" "$GENERATED"
 
           sed -i "s|REPLACE_APPLICATION|${APPLICATION_NAME}|g" "$GENERATED"
-          sed -i "s|REPLACE_BRANCH_NAME|${TARGET_BRANCH}|g" "$GENERATED"
+          sed -i "s|REPLACE_BRANCH_NAME|${SOURCE_BRANCH}|g" "$GENERATED"
+          sed -i "s|REPLACE_HELM_BRANCH|${TARGET_BRANCH}|g" "$GENERATED"
           sed -i "s|REPLACE_RELEASE_NAME|${RELEASE_NAME}|g" "$GENERATED"
           sed -i "s|REPLACE_BACKEND_TAG|${BACKEND_TAG}|g" "$GENERATED"
           sed -i "s|REPLACE_FRONTEND_TAG|${FRONTEND_TAG}|g" "$GENERATED"
