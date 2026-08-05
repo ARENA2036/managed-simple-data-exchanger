@@ -32,7 +32,7 @@ name: SDE CI-CD Pipeline
 on:
   repository_dispatch:
     types:
-      - sde-preview-image-ready
+      - sde-deployment-request
 
   push:
     branches:
@@ -236,7 +236,7 @@ jobs:
               FRONTEND_TAG="$DISPATCH_IMAGE_TAG"
 
               # repository_dispatch runs from the Helm repository default branch.
-              TARGET_BRANCH="${{ github.ref_name }}"
+              TARGET_BRANCH="ci-cd-branch"
             else
               BACKEND_TAG="$BRANCH_TAG"
               FRONTEND_TAG="$BRANCH_TAG"
@@ -362,6 +362,10 @@ jobs:
     needs: resolve-deployment
     runs-on: ubuntu-latest
 
+    outputs:
+      backend_found: ${{ steps.verify.outputs.backend_found }}
+      frontend_found: ${{ steps.verify.outputs.frontend_found }}
+
     steps:
       - name: Install skopeo
         shell: bash
@@ -373,11 +377,13 @@ jobs:
 
           skopeo --version
 
-      # Retry because frontend/backend builds can complete at
-      # slightly different times.
-      # Retry because frontend and backend builds may finish at different times.
-    # Retry because frontend and backend builds may finish at different times.
+      # Behavior:
+      # - backend only found  -> continue
+      # - frontend only found -> continue
+      # - both found          -> continue
+      # - neither found       -> stop
       - name: Verify backend and frontend images
+        id: verify
         env:
           HBR_USERNAME: ${{ secrets.HBR_USERNAME }}
           HBR_PASSWORD: ${{ secrets.HBR_PASSWORD }}
@@ -393,86 +399,88 @@ jobs:
           FRONTEND_IMAGE="${FRONTEND_IMAGE_REPOSITORY}:${FRONTEND_TAG}"
 
           if [[ -z "$HBR_USERNAME" || -z "$HBR_PASSWORD" ]]; then
-          echo "Harbor credentials are missing"
-          exit 1
+            echo "Harbor credentials are missing"
+            exit 1
           fi
 
           if [[ -z "$BACKEND_TAG" || -z "$FRONTEND_TAG" ]]; then
-          echo "Backend or frontend image tag is empty"
-          exit 1
+            echo "Backend or frontend image tag is empty"
+            exit 1
           fi
 
           echo "Backend image: $BACKEND_IMAGE"
           echo "Frontend image: $FRONTEND_IMAGE"
 
-          for ATTEMPT in {1..20}; do
           BACKEND_FOUND="false"
           FRONTEND_FOUND="false"
 
           if skopeo inspect \
-              --creds "${HBR_USERNAME}:${HBR_PASSWORD}" \
-              "docker://${BACKEND_IMAGE}" \
-              > /tmp/backend-inspect.json \
-              2> /tmp/backend-error.log; then
+            --creds "${HBR_USERNAME}:${HBR_PASSWORD}" \
+            "docker://${BACKEND_IMAGE}" \
+            > /tmp/backend-inspect.json \
+            2> /tmp/backend-error.log; then
 
-              BACKEND_FOUND="true"
+            BACKEND_FOUND="true"
           fi
 
           if skopeo inspect \
-              --creds "${HBR_USERNAME}:${HBR_PASSWORD}" \
-              "docker://${FRONTEND_IMAGE}" \
-              > /tmp/frontend-inspect.json \
-              2> /tmp/frontend-error.log; then
+            --creds "${HBR_USERNAME}:${HBR_PASSWORD}" \
+            "docker://${FRONTEND_IMAGE}" \
+            > /tmp/frontend-inspect.json \
+            2> /tmp/frontend-error.log; then
 
-              FRONTEND_FOUND="true"
+            FRONTEND_FOUND="true"
           fi
 
-          echo "Attempt ${ATTEMPT}/20"
           echo "Backend found: ${BACKEND_FOUND}"
           echo "Frontend found: ${FRONTEND_FOUND}"
 
+          echo "backend_found=$BACKEND_FOUND" >> "$GITHUB_OUTPUT"
+          echo "frontend_found=$FRONTEND_FOUND" >> "$GITHUB_OUTPUT"
+
+          if [[ "$BACKEND_FOUND" != "true" &&
+                "$FRONTEND_FOUND" != "true" ]]; then
+
+            echo "Neither backend nor frontend image exists"
+            echo "Backend: $BACKEND_IMAGE"
+            echo "Frontend: $FRONTEND_IMAGE"
+
+            echo "Backend inspection error:"
+            cat /tmp/backend-error.log || true
+
+            echo "Frontend inspection error:"
+            cat /tmp/frontend-error.log || true
+
+            exit 1
+          fi
+
           if [[ "$BACKEND_FOUND" == "true" &&
-                  "$FRONTEND_FOUND" == "true" ]]; then
-              echo "Both Harbor images exist"
-              exit 0
+                "$FRONTEND_FOUND" == "true" ]]; then
+            echo "Deployment will update backend and frontend"
+          elif [[ "$BACKEND_FOUND" == "true" ]]; then
+            echo "Deployment will update backend only"
+            echo "Frontend will keep its current values-file tag"
+          else
+            echo "Deployment will update frontend only"
+            echo "Backend will keep its current values-file tag"
           fi
-
-          if [[ "$BACKEND_FOUND" != "true" ]]; then
-              echo "Backend inspection error:"
-              cat /tmp/backend-error.log || true
-          fi
-
-          if [[ "$FRONTEND_FOUND" != "true" ]]; then
-              echo "Frontend inspection error:"
-              cat /tmp/frontend-error.log || true
-          fi
-
-          if [[ "$ATTEMPT" -lt 20 ]]; then
-              echo "Waiting 30 seconds before retry..."
-              sleep 30
-          fi
-          done
-
-          echo "Required Harbor images were not found"
-          echo "Backend: $BACKEND_IMAGE"
-          echo "Frontend: $FRONTEND_IMAGE"
-          exit 1
 
       - name: Write image summary
+        env:
+          BACKEND_FOUND: ${{ steps.verify.outputs.backend_found }}
+          FRONTEND_FOUND: ${{ steps.verify.outputs.frontend_found }}
+
         shell: bash
         run: |
           {
-            echo "## Verified SDE images"
+            echo "## SDE Harbor image verification"
             echo
-            echo "| Component | Image |"
-            echo "|---|---|"
-            echo "| Backend | \`${BACKEND_IMAGE_REPOSITORY}:${{ needs.resolve-deployment.outputs.backend_tag }}\` |"
-            echo "| Frontend | \`${FRONTEND_IMAGE_REPOSITORY}:${{ needs.resolve-deployment.outputs.frontend_tag }}\` |"
+            echo "| Component | Image | Found |"
+            echo "|---|---|---|"
+            echo "| Backend | `${BACKEND_IMAGE_REPOSITORY}:${{ needs.resolve-deployment.outputs.backend_tag }}` | `${BACKEND_FOUND}` |"
+            echo "| Frontend | `${FRONTEND_IMAGE_REPOSITORY}:${{ needs.resolve-deployment.outputs.frontend_tag }}` | `${FRONTEND_FOUND}` |"
           } >> "$GITHUB_STEP_SUMMARY"
 
-  # =================================================================
-  # Update values-dev.yaml, values-staging.yaml or values-prod.yaml.
-  # =================================================================
   update-image-tag:
     name: Update Helm Image Tags for Deployment
     needs:
@@ -483,6 +491,10 @@ jobs:
 
     permissions:
       contents: write
+
+    outputs:
+      backend_tag: ${{ steps.update.outputs.backend_tag }}
+      frontend_tag: ${{ steps.update.outputs.frontend_tag }}
 
     steps:
       - name: Checkout deployment branch
@@ -505,11 +517,16 @@ jobs:
           sudo chmod +x /usr/local/bin/yq
           yq --version
 
-      - name: Update backend and frontend image tags
+      - name: Update available backend and frontend image tags
+        id: update
         env:
           VALUES_FILE: ${{ needs.resolve-deployment.outputs.values_file }}
-          BACKEND_TAG: ${{ needs.resolve-deployment.outputs.backend_tag }}
-          FRONTEND_TAG: ${{ needs.resolve-deployment.outputs.frontend_tag }}
+
+          REQUESTED_BACKEND_TAG: ${{ needs.resolve-deployment.outputs.backend_tag }}
+          REQUESTED_FRONTEND_TAG: ${{ needs.resolve-deployment.outputs.frontend_tag }}
+
+          BACKEND_FOUND: ${{ needs.verify-images.outputs.backend_found }}
+          FRONTEND_FOUND: ${{ needs.verify-images.outputs.frontend_found }}
 
         shell: bash
         run: |
@@ -520,21 +537,51 @@ jobs:
             exit 1
           fi
 
-          yq -i \
-            '.backend.image.repository = strenv(BACKEND_IMAGE_REPOSITORY)' \
-            "$VALUES_FILE"
+          CURRENT_BACKEND_TAG="$(yq -r '.backend.image.tag // ""' "$VALUES_FILE")"
+          CURRENT_FRONTEND_TAG="$(yq -r '.frontend.image.tag // ""' "$VALUES_FILE")"
 
-          yq -i \
-            '.backend.image.tag = strenv(BACKEND_TAG)' \
-            "$VALUES_FILE"
+          EFFECTIVE_BACKEND_TAG="$CURRENT_BACKEND_TAG"
+          EFFECTIVE_FRONTEND_TAG="$CURRENT_FRONTEND_TAG"
 
-          yq -i \
-            '.frontend.image.repository = strenv(FRONTEND_IMAGE_REPOSITORY)' \
-            "$VALUES_FILE"
+          if [[ "$BACKEND_FOUND" == "true" ]]; then
+            EFFECTIVE_BACKEND_TAG="$REQUESTED_BACKEND_TAG"
 
-          yq -i \
-            '.frontend.image.tag = strenv(FRONTEND_TAG)' \
-            "$VALUES_FILE"
+            yq -i \
+              '.backend.image.repository = strenv(BACKEND_IMAGE_REPOSITORY)' \
+              "$VALUES_FILE"
+
+            BACKEND_TAG="$EFFECTIVE_BACKEND_TAG" \
+              yq -i '.backend.image.tag = strenv(BACKEND_TAG)' "$VALUES_FILE"
+
+            echo "Backend updated to: $EFFECTIVE_BACKEND_TAG"
+          else
+            echo "Backend image was not found"
+            echo "Keeping backend tag: $EFFECTIVE_BACKEND_TAG"
+          fi
+
+          if [[ "$FRONTEND_FOUND" == "true" ]]; then
+            EFFECTIVE_FRONTEND_TAG="$REQUESTED_FRONTEND_TAG"
+
+            yq -i \
+              '.frontend.image.repository = strenv(FRONTEND_IMAGE_REPOSITORY)' \
+              "$VALUES_FILE"
+
+            FRONTEND_TAG="$EFFECTIVE_FRONTEND_TAG" \
+              yq -i '.frontend.image.tag = strenv(FRONTEND_TAG)' "$VALUES_FILE"
+
+            echo "Frontend updated to: $EFFECTIVE_FRONTEND_TAG"
+          else
+            echo "Frontend image was not found"
+            echo "Keeping frontend tag: $EFFECTIVE_FRONTEND_TAG"
+          fi
+
+          if [[ -z "$EFFECTIVE_BACKEND_TAG" || -z "$EFFECTIVE_FRONTEND_TAG" ]]; then
+            echo "Effective backend or frontend tag is empty"
+            exit 1
+          fi
+
+          echo "backend_tag=$EFFECTIVE_BACKEND_TAG" >> "$GITHUB_OUTPUT"
+          echo "frontend_tag=$EFFECTIVE_FRONTEND_TAG" >> "$GITHUB_OUTPUT"
 
           echo "Updated Helm values:"
           git diff -- "$VALUES_FILE"
@@ -566,8 +613,8 @@ jobs:
       - name: Commit updated Helm values
         env:
           VALUES_FILE: ${{ needs.resolve-deployment.outputs.values_file }}
-          BACKEND_TAG: ${{ needs.resolve-deployment.outputs.backend_tag }}
-          FRONTEND_TAG: ${{ needs.resolve-deployment.outputs.frontend_tag }}
+          BACKEND_TAG: ${{ steps.update.outputs.backend_tag }}
+          FRONTEND_TAG: ${{ steps.update.outputs.frontend_tag }}
           TARGET_BRANCH: ${{ needs.resolve-deployment.outputs.target_branch }}
 
         shell: bash
@@ -590,9 +637,6 @@ jobs:
           git pull --rebase origin "$TARGET_BRANCH"
           git push origin "HEAD:${TARGET_BRANCH}"
 
-  # =================================================================
-  # Developer Preview — AP6.
-  # =================================================================
   deploy-preview:
     name: Deploy Developer Preview
     needs:
@@ -673,8 +717,8 @@ jobs:
           TARGET_BRANCH: ${{ needs.resolve-deployment.outputs.target_branch }}
           SOURCE_BRANCH: ${{ needs.resolve-deployment.outputs.source_branch }}
           TARGET_NAMESPACE: ${{ needs.resolve-deployment.outputs.namespace }}
-          BACKEND_TAG: ${{ needs.resolve-deployment.outputs.backend_tag }}
-          FRONTEND_TAG: ${{ needs.resolve-deployment.outputs.frontend_tag }}
+          BACKEND_TAG: ${{ needs.update-image-tag.outputs.backend_tag }}
+          FRONTEND_TAG: ${{ needs.update-image-tag.outputs.frontend_tag }}
 
         shell: bash
         run: |
@@ -800,8 +844,8 @@ jobs:
         env:
           TEMPLATE_FILE: ${{ needs.resolve-deployment.outputs.template_file }}
           APPLICATION_NAME: ${{ needs.resolve-deployment.outputs.application_name }}
-          BACKEND_TAG: ${{ needs.resolve-deployment.outputs.backend_tag }}
-          FRONTEND_TAG: ${{ needs.resolve-deployment.outputs.frontend_tag }}
+          BACKEND_TAG: ${{ needs.update-image-tag.outputs.backend_tag }}
+          FRONTEND_TAG: ${{ needs.update-image-tag.outputs.frontend_tag }}
 
         shell: bash
         run: |
@@ -915,8 +959,8 @@ jobs:
         env:
           TEMPLATE_FILE: ${{ needs.resolve-deployment.outputs.template_file }}
           APPLICATION_NAME: ${{ needs.resolve-deployment.outputs.application_name }}
-          BACKEND_TAG: ${{ needs.resolve-deployment.outputs.backend_tag }}
-          FRONTEND_TAG: ${{ needs.resolve-deployment.outputs.frontend_tag }}
+          BACKEND_TAG: ${{ needs.update-image-tag.outputs.backend_tag }}
+          FRONTEND_TAG: ${{ needs.update-image-tag.outputs.frontend_tag }}
 
         shell: bash
         run: |
@@ -1031,8 +1075,8 @@ jobs:
           TEMPLATE_FILE: ${{ needs.resolve-deployment.outputs.template_file }}
           APPLICATION_NAME: ${{ needs.resolve-deployment.outputs.application_name }}
           TARGET_BRANCH: ${{ needs.resolve-deployment.outputs.target_branch }}
-          BACKEND_TAG: ${{ needs.resolve-deployment.outputs.backend_tag }}
-          FRONTEND_TAG: ${{ needs.resolve-deployment.outputs.frontend_tag }}
+          BACKEND_TAG: ${{ needs.update-image-tag.outputs.backend_tag }}
+          FRONTEND_TAG: ${{ needs.update-image-tag.outputs.frontend_tag }}
 
         shell: bash
         run: |
