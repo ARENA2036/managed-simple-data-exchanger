@@ -231,15 +231,29 @@ jobs:
             TEMPLATE_FILE=".github/argocd/sde-preview-app.yaml"
 
             # Matching tags must already exist in both source repos.
+            # open this after testing
+            # if [[ "$EVENT_NAME" == "repository_dispatch" ]]; then
+            #   BACKEND_TAG="$DISPATCH_IMAGE_TAG"
+            #   FRONTEND_TAG="$DISPATCH_IMAGE_TAG"
+
+            #   # repository_dispatch runs from the Helm repository default branch.
+            #   # TARGET_BRANCH="${{ github.ref_name }}"
+            #   TARGET_BRANCH="ci-cd-branch"
+            # else
+            #   BACKEND_TAG="$BRANCH_TAG"
+            #   FRONTEND_TAG="$BRANCH_TAG"
+            #   TARGET_BRANCH="$BRANCH_NAME"
+            # fi
             if [[ "$EVENT_NAME" == "repository_dispatch" ]]; then
               BACKEND_TAG="$DISPATCH_IMAGE_TAG"
               FRONTEND_TAG="$DISPATCH_IMAGE_TAG"
 
-              # repository_dispatch runs from the Helm repository default branch.
-              TARGET_BRANCH="${{ github.ref_name }}"
+              # Run the Helm deployment using the ci-cd-branch content.
+              TARGET_BRANCH="ci-cd-branch"
             else
               BACKEND_TAG="$BRANCH_TAG"
               FRONTEND_TAG="$BRANCH_TAG"
+
               TARGET_BRANCH="$BRANCH_NAME"
             fi
 
