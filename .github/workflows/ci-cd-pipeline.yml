@@ -671,11 +671,118 @@ jobs:
           git pull --rebase origin "$TARGET_BRANCH"
           git push origin "HEAD:${TARGET_BRANCH}"
 
+  # =================================================================
+  # Create Harbor image pull secret in the target application cluster.
+  # =================================================================
+  create-registry-secret:
+    name: Create Harbor Registry Secret
+    needs:
+      - resolve-deployment
+      - update-image-tag
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Install kubectl and Vault
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          KUBECTL_VERSION="$(curl -L -s https://dl.k8s.io/release/stable.txt)"
+
+          curl -LO -s \
+            "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl"
+
+          chmod +x kubectl
+          sudo mv kubectl /usr/local/bin/kubectl
+
+          curl -sSL \
+            "https://releases.hashicorp.com/vault/${VAULT_VERSION}/vault_${VAULT_VERSION}_linux_amd64.zip" \
+            -o vault.zip
+
+          unzip -q vault.zip
+          chmod +x vault
+          sudo mv vault /usr/local/bin/vault
+
+      - name: Connect to target cluster
+        env:
+          VAULT_ADDR: ${{ secrets.VAULT_ADDR_PROD }}
+          VAULT_TOKEN: ${{ secrets.VAULT_TOKEN_PROD }}
+          DEPLOYMENT_TYPE: ${{ needs.resolve-deployment.outputs.deployment_type }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          case "$DEPLOYMENT_TYPE" in
+            preview|shared-dev)
+              VAULT_SECRET_PATH="staging/infra/cluster-int"
+              ;;
+            staging)
+              VAULT_SECRET_PATH="staging/infra/cluster-staging"
+              ;;
+            production)
+              VAULT_SECRET_PATH="staging/infra/cluster-prod"
+              ;;
+            *)
+              echo "Unsupported deployment type: $DEPLOYMENT_TYPE"
+              exit 1
+              ;;
+          esac
+
+          mkdir -p "$HOME/.kube"
+
+          vault kv get \
+            -field=config \
+            "$VAULT_SECRET_PATH" \
+            > "$HOME/.kube/config"
+
+          chmod 600 "$HOME/.kube/config"
+
+          kubectl config current-context
+          kubectl cluster-info
+
+      - name: Create Harbor registry secret
+        env:
+          HBR_USERNAME: ${{ secrets.HBR_USERNAME }}
+          HBR_PASSWORD: ${{ secrets.HBR_PASSWORD }}
+          TARGET_NAMESPACE: ${{ needs.resolve-deployment.outputs.namespace }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ -z "$HBR_USERNAME" || -z "$HBR_PASSWORD" ]]; then
+            echo "HBR_USERNAME or HBR_PASSWORD is missing"
+            exit 1
+          fi
+
+          if [[ -z "$TARGET_NAMESPACE" ]]; then
+            echo "Target namespace is empty"
+            exit 1
+          fi
+
+          kubectl create namespace "$TARGET_NAMESPACE" \
+            --dry-run=client \
+            -o yaml |
+          kubectl apply -f -
+
+          kubectl create secret docker-registry registry-creds \
+            --docker-server="harbor-hub-shared.arena.3ascloud.de" \
+            --docker-username="$HBR_USERNAME" \
+            --docker-password="$HBR_PASSWORD" \
+            --namespace="$TARGET_NAMESPACE" \
+            --dry-run=client \
+            -o yaml |
+          kubectl apply -f -
+
+          kubectl get secret registry-creds \
+            --namespace="$TARGET_NAMESPACE"
+
   deploy-preview:
     name: Deploy Developer Preview
     needs:
       - resolve-deployment
       - update-image-tag
+      - create-registry-secret
 
     if: |
       needs.resolve-deployment.outputs.deployment_type == 'preview'
@@ -807,6 +914,7 @@ jobs:
     needs:
       - resolve-deployment
       - update-image-tag
+      - create-registry-secret
 
     if: |
       needs.resolve-deployment.outputs.deployment_type == 'shared-dev'
@@ -922,6 +1030,7 @@ jobs:
     needs:
       - resolve-deployment
       - update-image-tag
+      - create-registry-secret
 
     if: |
       needs.resolve-deployment.outputs.deployment_type == 'staging'
@@ -1037,6 +1146,7 @@ jobs:
     needs:
       - resolve-deployment
       - update-image-tag
+      - create-registry-secret
 
     if: |
       needs.resolve-deployment.outputs.deployment_type == 'production'
