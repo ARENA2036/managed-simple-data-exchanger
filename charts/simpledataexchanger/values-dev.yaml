@@ -84,26 +84,26 @@ backend:
       #   path: /api
   ingresses:
     - enabled: false
-      className: ""
+      className: "nginx"
       annotations: {}
-        # cert-manager.io/cluster-issuer:
-        # kubernetes.io/ingress.class:
-        # nginx.ingress.kubernetes.io/cors-allow-credentials: "true"
-        # nginx.ingress.kubernetes.io/cors-allow-methods: "PUT, GET, POST, OPTIONS"
-        # nginx.ingress.kubernetes.io/cors-allow-origin: "https://*tx.test"
-        # nginx.ingress.kubernetes.io/enable-cors: "true"
-      hostname: ""
+        cert-manager.io/cluster-issuer: letsencrypt-int
+        kubernetes.io/ingress.class:
+        nginx.ingress.kubernetes.io/cors-allow-credentials: "true"
+        nginx.ingress.kubernetes.io/cors-allow-methods: "PUT, GET, POST, OPTIONS"
+        nginx.ingress.kubernetes.io/cors-allow-origin: "https://*tx.test"
+        nginx.ingress.kubernetes.io/enable-cors: "true"
+      hostname: "sde-backend.txcd.arena2036.app"
       endpoints:
         - default
       tls:
         enabled: false
-        secretName: ""
+        secretName: "sde-backend-tls"
       # -- If present overwrites the default secret name
       certManager:
         # -- If preset enables certificate generation via cert-manager namespace scoped issuer
-        issuer: ""
+        # issuer: ""
         # -- If preset enables certificate generation via cert-manager cluster-wide issuer
-        clusterIssuer: ""
+        clusterIssuer: "letsencrypt-int"
       # hosts:
       #   - chart-example.local
 
@@ -262,27 +262,27 @@ frontend:
         path: /
   ingresses:
     - enabled: false
-      className: ""
+      className: "nginx"
       annotations: {}
-        # cert-manager.io/cluster-issuer: ""
-        # kubernetes.io/ingress.class:
-        # nginx.ingress.kubernetes.io/cors-allow-credentials: "true"
-        # nginx.ingress.kubernetes.io/cors-allow-methods: "PUT, GET, POST, OPTIONS"
-        # nginx.ingress.kubernetes.io/cors-allow-origin: "*"
-        # nginx.ingress.kubernetes.io/enable-cors: "true"
-      hostname: ""
+        cert-manager.io/cluster-issuer: letsencrypt-int
+        kubernetes.io/ingress.class:
+        nginx.ingress.kubernetes.io/cors-allow-credentials: "true"
+        nginx.ingress.kubernetes.io/cors-allow-methods: "PUT, GET, POST, OPTIONS"
+        nginx.ingress.kubernetes.io/cors-allow-origin: "*"
+        nginx.ingress.kubernetes.io/enable-cors: "true"
+      hostname: "sde.txcd.arena2036.app"
       endpoints:
         - default
 
       tls:
         enabled: false
-        secretName: ""
+        secretName: "sde-frontend-tls"
           # -- If present overwrites the default secret name
       certManager:
         # -- If preset enables certificate generation via cert-manager namespace scoped issuer
-        issuer: ""
+        # issuer: ""
           # -- If preset enables certificate generation via cert-manager cluster-wide issuer
-        clusterIssuer: ""
+        clusterIssuer: "letsencrypt-int"
 
   resources:
   # We usually recommend not to specify default resources and to leave this as a conscious
