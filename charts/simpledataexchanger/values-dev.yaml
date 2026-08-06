@@ -87,7 +87,6 @@ backend:
       className: nginx
       annotations:
         cert-manager.io/cluster-issuer: letsencrypt-int
-        kubernetes.io/ingress.class: nginx
         nginx.ingress.kubernetes.io/cors-allow-credentials: "true"
         nginx.ingress.kubernetes.io/cors-allow-methods: "PUT, GET, POST, OPTIONS"
         nginx.ingress.kubernetes.io/cors-allow-origin: "https://*tx.test"
@@ -134,95 +133,128 @@ backend:
 
   configuration:
     properties: |-
-      keycloak.clientid=default
-      spring.security.oauth2.resourceserver.jwt.issuer-uri=default
-      management.endpoint.health.probes.enabled=true
-      management.health.readinessstate.enabled=true
-      management.health.livenessstate.enabled=true
+      keycloak.clientid=SDE-2
+      spring.security.oauth2.resourceserver.jwt.issuer-uri=https://centralidp.txcd.arena2036-x.de/auth/realms/CX-Central
+      # Enable multipart uploads
+      spring.servlet.multipart.enabled=true
+      spring.main.allow-bean-definition-overriding=true
+      spring.jackson.mapper.accept-case-insensitive-enums=true
+      # Threshold after which files are written to disk.
+      spring.servlet.multipart.file-size-threshold=2KB   
+      # Max file size.
+      spring.servlet.multipart.max-file-size=200MB
+      # Max Request Size
+      spring.servlet.multipart.max-request-size=215MB
+      server.servlet.context-path=/api
+      ## Flyway
+      spring.flyway.baseline-on-migrate=true
+      spring.flyway.locations=classpath:/flyway
+      ## Database
+      spring.datasource.driver-class-name=org.postgresql.Driver
+      spring.jpa.hibernate.ddl-auto=update
+      #spring.jpa.hibernate.ddl-auto=create
+      spring.datasource.url=jdbc:postgresql://localhost:5432/sdedb
+      spring.datasource.username=postgres
+      spring.datasource.password=admin
+      spring.jpa.open-in-view=false
+      ## File Storage Properties
+      file.upload-dir=./temp/
+      ## Logging
+      logging.pattern.console=%d{yyyy-MM-dd HH:mm:ss} - %-5level - [%logger{36}] - %msg%n
+      logging.level.root=DEBUG
+      logging.level.org.springframework.web=WARN
+      logging.level.org.apache.http=DEBUG
+      logging.level.sun.rmi=WARN
+      logging.level.javax.management.remote.rmi=WARN
+      logging.level.com.zaxxer.hikari=WARN
+      logging.level.org.springframework.cloud.openfeign=DEBUG
+      #feign.client.config.digitalTwinsFeignClient.loggerLevel=DEBUG
+      ## Digital Twins
+      digital-twins.hostname=https://connector-2-dtr.txcd.arena2036.app/semantics/registry
+      digital-twins.registry.uri=/api/v3
+      digital-twins.registry.lookup.uri=/api/v3
+      digital-twins.authentication.enable=false
+      #digital-twins.authentication.url=https://centralidp.arena2036-x.de/auth/realms/CX-Central/protocol/openid-connect/token
+      digital-twins.authentication.url=https://centralidp.txcd.arena2036-x.de/auth/realms/CX-Central/protocol/openid-connect/token
+      digital-twins.authentication.clientId=satest01
+      digital-twins.authentication.clientSecret=UbfW4CR1xH4OskkovqJ2JzcwnQIrG7oj
+      digital-twins.authentication.grantType=client_credentials
+      digital-twins.authentication.scope=
+      #General EDC Configutation
+      edc.version.major=0
+      edc.version.minor=11
+      edc.version.nano=1
+      edc.asset.prop.common.version=3.0
+      ## EDC Provider
+      edc.hostname=https://connector-2-controlplane.txcd.arena2036.app
+      edc.managementpath=/management
+      edc.apiKeyHeader=X-Api-Key
+      edc.apiKey=CONNECTOR2
+      edc.dsp.endpointpath=/api/v1/dsp
+      edc.dataplane.hostname=https://connector-2-dataplane.txcd.arena2036.app
+      edc.dataplane.endpointpath=/api/public
+      edc.managementpath.apiversion=/v3
+      edc.managementpath.apiversion.asset=/v3
+      ## needs to be empty because cx-policy context is causing issues
+      edc.policy.prefix=https://w3id.org/catenax/2025/9/policy/
+      ## EDC Consumer
+      edc.consumer.hostname=https://connector-3-controlplane.txcd.arena2036.app
+      edc.consumer.apikeyheader=X-Api-Key
+      edc.consumer.apikey=CONNECTOR3
+      ##edc.consumer.managementpath=/data/v2
+      edc.consumer.managementpath=/management
+      edc.consumer.protocol.path=/api/v1/dsp
+      ## Submodel data source configuration for EDC
+      ##rename to submodel.datasource.external
+      submodel.datasource.enable=true
+      submodel.datasource.hostname=https://connector-2-submodelserver.txcd.arena2036.app
+      submodel.datasource.authentication.enable=false
+      submodel.datasource.clientId=sa-cl22-01
+      submodel.datasource.clientSecret=changeme
+      submodel.datasource.grantType=client_credentials
+      #EDR Configuration
+      edr.retry.count=5
+      edr.retry.time=1500
+      edr.refresh.auto=true
+      edr.refresh.enable=false
+      ## Manufacturer Id
+      manufacturerId=BPNL00000000052O
+      ##Partner Pool Api Host
+      partner.pool.hostname=default
+      partner.pool.authentication.url=default
+      partner.pool.clientId=default
+      partner.pool.clientSecret=default
+      partner.pool.grantType=client_credentials
+      #BPDM
+      bpdm.provider.edc.dsp.api=https://connector-2-controlplane.txcd.arena2036.app
+      bpdm.provider.bpnl=BPNL00000000052O
+      #bpdm.provider.edc.public.api==
+      ## Portal backend and Connector discovery
+      portal.backend.hostname=https://portal-backend.txcd.arena2036-x.de
+      portal.backend.authentication.url=https://centralidp.txcd.arena2036-x.de/auth/realms/CX-Central/protocol/openid-connect/token
+      portal.backend.clientId=satest01
+      portal.backend.clientSecret=UbfW4CR1xH4OskkovqJ2JzcwnQIrG7oj
+      portal.backend.grantType=client_credentials
+      ## bpn & discovery finder
+      bpndiscovery.hostname=https://semantics.txcd.arena2036-x.de/bpndiscovery/api/v1.0
+      discovery.authentication.url=https://centralidp.txcd.arena2036-x.de/auth/realms/CX-Central/protocol/openid-connect/token
+      discovery.clientId=sa-cl22-01
+      discovery.clientSecret=changeme
+      discovery.grantType=client_credentials
+      # policy-hub config
+      policy.hub.hostname=https://policyhub.txcd.arena2036-x.de/api
+      policy.hub.authentication.url=https://centralidp.txcd.arena2036-x.de/auth/realms/CX-Central/protocol/openid-connect/token
+      policy.hub.clientId=satest01
+      policy.hub.clientSecret=UbfW4CR1xH4OskkovqJ2JzcwnQIrG7oj
+      policy.hub.grantType=client_credentials
       management.endpoints.web.exposure.include=*
-      management.endpoint.health.show-details=never
+      management.endpoint.health.show-details=always
       management.metrics.export.prometheus.enabled=true
       management.endpoint.prometheus.enabled=true
       spring.sleuth.sampler.probability=1.0
       spring.zipkin.base-url=http://localhost:9411/
       spring.zipkin.sender.type=web
       spring.application.name=springboot-monitoring-SDE
-      spring.lifecycle.timeout-per-shutdown-phase=30s
-      logging.level.org.springframework.security.web.csrf=INFO
-      spring.servlet.multipart.enabled=true
-      springdoc.api-docs.path=/api-docs
-      spring.main.allow-bean-definition-overriding=true
-      spring.servlet.multipart.file-size-threshold=2KB
-      spring.servlet.multipart.max-file-size=200MB
-      spring.servlet.multipart.max-request-size=215MB
-      server.servlet.context-path=/api
-      spring.flyway.baseline-on-migrate=true
-      spring.flyway.locations=classpath:/flyway
-      spring.datasource.driver-class-name=org.postgresql.Driver
-      spring.jpa.hibernate.ddl-auto=update
-      spring.jpa.open-in-view=false
-      file.upload-dir=./temp/
-      logging.level.org.apache.http=info
-      logging.level.root=info
-      digital-twins.hostname=default
-      digital-twins.authentication.url=default
-      digital-twins.registry.uri=/api/v3
-      digital-twins.registry.lookup.uri=/api/v3
-      digital-twins.authentication.clientId=default
-      digital-twins.authentication.clientSecret=default
-      digital-twins.authentication.grantType=client_credentials
-      edc.hostname=default
-      edc.managementpath=/management
-      edc.apiKeyHeader=X-Api-Key
-      edc.apiKey=default
-      edc.dsp.endpointpath=/api/v1/dsp
-      edc.dataplane.endpointpath=/api/public
-      edc.dataplane.hostname=default
-      edc.managementpath.apiversion=/v3
-      edc.managementpath.apiversion.asset=/v3
-      edc.consumer.hostname=default
-      edc.consumer.apikeyheader=X-Api-Key
-      edc.consumer.apikey=default
-      edc.consumer.managementpath=/management
-      edc.consumer.protocol.path=/api/v1/dsp
-      dft.hostname=default
-      dft.apiKeyHeader=X-Api-Key
-      dft.apiKey=default
-      submodel.datasource.enable=true
-      submodel.datasource.hostname=default
-      submodel.datasource.authentication.enable=false
-      submodel.datasource.clientId=default
-      submodel.datasource.clientSecret=
-      submodel.datasource.grantType=client_credentials
-      edr.retry.count=5
-      edr.retry.time=1500
-      edr.refresh.auto=true
-      edr.refresh.enable=false
-      manufacturerId=default
-      partner.pool.hostname=default
-      partner.pool.authentication.url=default
-      partner.pool.clientId=default
-      partner.pool.clientSecret=default
-      partner.pool.grantType=client_credentials
-      bpdm.provider.edc.dsp.api=default
-      #bpdm.provider.edc.dataspace.api=default
-      bpdm.provider.bpnl=default
-      #bpdm.provider.edc.public.api=default
-      portal.backend.hostname=default
-      portal.backend.authentication.url=default
-      portal.backend.clientId=default
-      portal.backend.clientSecret=default
-      portal.backend.grantType=client_credentials
-      bpndiscovery.hostname=default
-      discovery.authentication.url=default
-      discovery.clientId=default
-      discovery.clientSecret=default
-      discovery.grantType=client_credentials
-      policy.hub.hostname=default
-      policy.hub.authentication.url=default
-      policy.hub.clientId=default
-      policy.hub.clientSecret=default
-      policy.hub.grantType=client_credentials
 
 frontend:
   image:
@@ -265,7 +297,6 @@ frontend:
       className: nginx
       annotations:
         cert-manager.io/cluster-issuer: letsencrypt-int
-        kubernetes.io/ingress.class: nginx
         nginx.ingress.kubernetes.io/cors-allow-credentials: "true"
         nginx.ingress.kubernetes.io/cors-allow-methods: "PUT, GET, POST, OPTIONS"
         nginx.ingress.kubernetes.io/cors-allow-origin: "*"
@@ -310,12 +341,12 @@ frontend:
 
   configuration:
     properties: |-
-      REACT_APP_API_URL=
-      REACT_APP_KEYCLOAK_URL=
-      REACT_APP_KEYCLOAK_REALM=
-      REACT_APP_CLIENT_ID=
-      REACT_APP_FILESIZE=
-      REACT_APP_DEFAULT_COMPANY_BPN=
+      REACT_APP_API_URL=https://sde-backend.txcd.arena2036.app/api
+      REACT_APP_KEYCLOAK_URL=https://centralidp.txcd.arena2036-x.de/auth
+      REACT_APP_KEYCLOAK_REALM=CX-Central
+      REACT_APP_CLIENT_ID=CX-SDE
+      REACT_APP_FILESIZE=104857600
+      REACT_APP_DEFAULT_COMPANY_BPN=BPNL000000000065
 
 serviceAccount:
   # Specifies whether a service account should be created
