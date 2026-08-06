@@ -63,12 +63,12 @@ on:
 
       backend_image_tag:
         description: "Backend: Optional existing Docker image tag, e.g. latest-v1"
-        required: false
+        required: true
         type: string
 
       frontend_image_tag:
         description: "Frontend: Optional existing Docker image tag, e.g. latest-v1"
-        required: false
+        required: true
         type: string
 
 permissions:
