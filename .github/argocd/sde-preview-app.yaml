@@ -28,12 +28,68 @@ spec:
         - values-dev.yaml
 
       parameters:
+        # Unique resource names
+        - name: backend.fullnameOverride
+          value: REPLACE_RELEASE_NAME-backend
+          forceString: true
+
+        - name: frontend.fullnameOverride
+          value: REPLACE_RELEASE_NAME-frontend
+          forceString: true
+
+        # Docker image tags
         - name: backend.image.tag
           value: REPLACE_BACKEND_TAG
           forceString: true
 
         - name: frontend.image.tag
           value: REPLACE_FRONTEND_TAG
+          forceString: true
+
+        # Backend ingress
+        - name: backend.ingresses[0].enabled
+          value: "true"
+
+        - name: backend.ingresses[0].className
+          value: nginx
+          forceString: true
+
+        - name: backend.ingresses[0].hostname
+          value: REPLACE_BACKEND_HOST
+          forceString: true
+
+        - name: backend.ingresses[0].tls.enabled
+          value: "true"
+
+        - name: backend.ingresses[0].tls.secretName
+          value: REPLACE_RELEASE_NAME-backend-tls
+          forceString: true
+
+        - name: backend.ingresses[0].certManager.clusterIssuer
+          value: letsencrypt-int
+          forceString: true
+
+        # Frontend ingress
+        - name: frontend.ingresses[0].enabled
+          value: "true"
+
+        - name: frontend.ingresses[0].className
+          value: nginx
+          forceString: true
+
+        - name: frontend.ingresses[0].hostname
+          value: REPLACE_FRONTEND_HOST
+          forceString: true
+
+        - name: frontend.ingresses[0].tls.enabled
+          value: "true"
+
+        - name: frontend.ingresses[0].tls.secretName
+          value: REPLACE_RELEASE_NAME-frontend-tls
+          forceString: true
+
+        - name: frontend.ingresses[0].certManager.clusterIssuer
+          value: letsencrypt-int
           forceString: true
 
   destination:
@@ -47,6 +103,7 @@ spec:
 
     syncOptions:
       - CreateNamespace=true
+      - Replace=true
       - PruneLast=true
 
   revisionHistoryLimit: 3

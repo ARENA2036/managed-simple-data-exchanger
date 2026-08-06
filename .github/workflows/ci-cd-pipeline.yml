@@ -56,18 +56,13 @@ on:
           - staging
           - prod
 
-      # image_tag:
-      #   description: "Optional: New Docker image tag for backend and frontend. Leave empty to use the current Git SHA"
-      #   required: false
-      #   type: string
-
       backend_image_tag:
-        description: "Backend: Optional existing Docker image tag, e.g. latest-v1"
+        description: "Backend: Existing Docker image tag in Harbor, e.g. latest-v1"
         required: true
         type: string
 
       frontend_image_tag:
-        description: "Frontend: Optional existing Docker image tag, e.g. latest-v1"
+        description: "Frontend: Existing Docker image tag in Harbor, e.g. latest-v1"
         required: true
         type: string
 
@@ -131,6 +126,8 @@ jobs:
       release_name: ${{ steps.resolve.outputs.release_name }}
       namespace: ${{ steps.resolve.outputs.namespace }}
       safe_branch: ${{ steps.resolve.outputs.safe_branch }}
+      backend_host: ${{ steps.resolve.outputs.backend_host }}
+      frontend_host: ${{ steps.resolve.outputs.frontend_host }}
 
     steps:
       - name: Resolve deployment configuration
@@ -160,14 +157,9 @@ jobs:
             DISPATCH_SOURCE=""
 
             TARGET_ENVIRONMENT="${{ github.event.inputs.environment }}"
-            COMMON_TAG="${{ github.event.inputs.image_tag }}"
+            COMMON_TAG=""
             BACKEND_TAG="${{ github.event.inputs.backend_image_tag }}"
             FRONTEND_TAG="${{ github.event.inputs.frontend_image_tag }}"
-
-            # Manual run defaults to the current Helm Git SHA.
-            if [[ -z "$COMMON_TAG" ]]; then
-              COMMON_TAG="${{ github.sha }}"
-            fi
 
           else
             BRANCH_NAME="${{ github.ref_name }}"
@@ -225,6 +217,9 @@ jobs:
             | cut -c1-7)"
 
           SAFE_BRANCH="${DNS_BRANCH}-${BRANCH_HASH}"
+
+          BACKEND_HOST="${SAFE_BRANCH}-backend.txcd.arena2036.app"
+          FRONTEND_HOST="${SAFE_BRANCH}.txcd.arena2036.app"
 
           # ---------------------------------------------------------
           # Manual developer preview.
@@ -336,7 +331,7 @@ jobs:
             if [[ -z "$BACKEND_TAG" || -z "$FRONTEND_TAG" ]]; then
               echo "Production requires existing image tags"
               echo
-              echo "Provide a common image_tag or both:"
+              echo "Provide both existing image tags:"
               echo "  backend_image_tag"
               echo "  frontend_image_tag"
               exit 1
@@ -380,12 +375,19 @@ jobs:
             echo "release_name=$RELEASE_NAME"
             echo "namespace=$NAMESPACE"
             echo "safe_branch=$SAFE_BRANCH"
+            echo "backend_host=$BACKEND_HOST"
+            echo "frontend_host=$FRONTEND_HOST"
           } >> "$GITHUB_OUTPUT"
 
           echo "Deployment: $DEPLOYMENT_TYPE"
           echo "Values file: $VALUES_FILE"
           echo "Backend: $BACKEND_IMAGE_REPOSITORY:$BACKEND_TAG"
           echo "Frontend: $FRONTEND_IMAGE_REPOSITORY:$FRONTEND_TAG"
+
+          if [[ "$DEPLOYMENT_TYPE" == "preview" ]]; then
+            echo "Backend host: $BACKEND_HOST"
+            echo "Frontend host: $FRONTEND_HOST"
+          fi
 
   # =================================================================
   # Verify the selected backend and frontend images exist in Harbor.
@@ -860,6 +862,8 @@ jobs:
           TARGET_NAMESPACE: ${{ needs.resolve-deployment.outputs.namespace }}
           BACKEND_TAG: ${{ needs.update-image-tag.outputs.backend_tag }}
           FRONTEND_TAG: ${{ needs.update-image-tag.outputs.frontend_tag }}
+          BACKEND_HOST: ${{ needs.resolve-deployment.outputs.backend_host }}
+          FRONTEND_HOST: ${{ needs.resolve-deployment.outputs.frontend_host }}
 
         shell: bash
         run: |
@@ -875,6 +879,8 @@ jobs:
           sed -i "s|REPLACE_RELEASE_NAME|${RELEASE_NAME}|g" "$GENERATED"
           sed -i "s|REPLACE_BACKEND_TAG|${BACKEND_TAG}|g" "$GENERATED"
           sed -i "s|REPLACE_FRONTEND_TAG|${FRONTEND_TAG}|g" "$GENERATED"
+          sed -i "s|REPLACE_BACKEND_HOST|${BACKEND_HOST}|g" "$GENERATED"
+          sed -i "s|REPLACE_FRONTEND_HOST|${FRONTEND_HOST}|g" "$GENERATED"
           sed -i "s|REPLACE_NAMESPACE|${TARGET_NAMESPACE}|g" "$GENERATED"
 
           if grep -q 'REPLACE_' "$GENERATED"; then
