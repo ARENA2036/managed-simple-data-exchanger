@@ -84,7 +84,7 @@ backend:
       #   path: /api
   ingresses:
     - enabled: false
-      className: "nginx"
+      className: nginx
       annotations:
         cert-manager.io/cluster-issuer: letsencrypt-int
         kubernetes.io/ingress.class: nginx
@@ -262,7 +262,7 @@ frontend:
         path: /
   ingresses:
     - enabled: false
-      className: "nginx"
+      className: nginx
       annotations:
         cert-manager.io/cluster-issuer: letsencrypt-int
         kubernetes.io/ingress.class: nginx
