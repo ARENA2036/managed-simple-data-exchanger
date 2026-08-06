@@ -83,7 +83,7 @@ backend:
       #   port: "8080"
       #   path: /api
   ingresses:
-    - enabled: false
+    - enabled: true
       className: nginx
       annotations:
         cert-manager.io/cluster-issuer: letsencrypt-int
@@ -96,7 +96,7 @@ backend:
       endpoints:
         - default
       tls:
-        enabled: false
+        enabled: true
         secretName: "sde-backend-tls"
       # -- If present overwrites the default secret name
       certManager:
@@ -261,7 +261,7 @@ frontend:
           # -- The path mapping the "default" api is going to be exposed at
         path: /
   ingresses:
-    - enabled: false
+    - enabled: true
       className: nginx
       annotations:
         cert-manager.io/cluster-issuer: letsencrypt-int
@@ -274,7 +274,7 @@ frontend:
       endpoints:
         - default
       tls:
-        enabled: false
+        enabled: true
         secretName: "sde-frontend-tls"
           # -- If present overwrites the default secret name
       certManager:

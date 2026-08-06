@@ -108,7 +108,7 @@ jobs:
   # Resolve deployment environment, values file and image tags.
   # =================================================================
   resolve-deployment:
-    name: Resolve Deployment
+    name: Select Deployment Environment and Cluster
     needs: trufflehog
     runs-on: ubuntu-latest
 
@@ -394,7 +394,7 @@ jobs:
   # No Docker image is built here.
   # =================================================================
   verify-images:
-    name: Verify Existing Harbor Images
+    name: Verify Docker Images in  Registry
     needs: resolve-deployment
     runs-on: ubuntu-latest
 
@@ -677,7 +677,7 @@ jobs:
   # Create Harbor image pull secret in the target application cluster.
   # =================================================================
   create-registry-secret:
-    name: Create Harbor Registry Secret
+    name: Create Harbor Image Pull Secret
     needs:
       - resolve-deployment
       - update-image-tag
@@ -780,7 +780,7 @@ jobs:
             --namespace="$TARGET_NAMESPACE"
 
   deploy-preview:
-    name: Deploy Developer Preview
+    name: Deploy Developer Preview via Argo CD
     needs:
       - resolve-deployment
       - update-image-tag
@@ -916,7 +916,7 @@ jobs:
   # Shared Development — AP6.
   # =================================================================
   deploy-shared-dev:
-    name: Deploy Shared Development
+    name: Deploy Shared Development Environment via Argo CD
     needs:
       - resolve-deployment
       - update-image-tag
@@ -1032,7 +1032,7 @@ jobs:
   # Staging — arenax-staging.
   # =================================================================
   deploy-staging:
-    name: Deploy Staging
+    name: Deploy to Staging Cluster via Argo CD
     needs:
       - resolve-deployment
       - update-image-tag
@@ -1148,7 +1148,7 @@ jobs:
   # Production — arenax-prod.
   # =================================================================
   deploy-production:
-    name: Deploy Production
+    name: Deploy to Production Cluster via Argo CD
     needs:
       - resolve-deployment
       - update-image-tag
@@ -1266,7 +1266,7 @@ jobs:
   # Release the Helm chart only after production deployment.
   # =================================================================
   chart-release:
-    name: Chart Release
+    name: Release Helm Chart
     needs: deploy-production
 
     if: |
