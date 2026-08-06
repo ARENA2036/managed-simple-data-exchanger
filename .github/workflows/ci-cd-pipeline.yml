@@ -56,10 +56,10 @@ on:
           - staging
           - prod
 
-      image_tag:
-        description: "Optional: New Docker image tag for backend and frontend. Leave empty to use the current Git SHA"
-        required: false
-        type: string
+      # image_tag:
+      #   description: "Optional: New Docker image tag for backend and frontend. Leave empty to use the current Git SHA"
+      #   required: false
+      #   type: string
 
       backend_image_tag:
         description: "Backend: Optional existing Docker image tag, e.g. latest-v1"
