@@ -3,8 +3,8 @@ name: SDE CI-CD Pipeline
 # Deployment rules:
 #
 # Developer Preview:
-#   feature/**, bugfix/**, hotfix/**, chore/**, docs/**
-#   Automatic on push
+#   feature/**, feat/**, bugfix/**, hotfix/**, chore/**, docs/**
+#   Manual with environment=dev-ap6
 #   Cluster: arenax-ap6
 #   Values: values-dev.yaml
 #
@@ -34,14 +34,15 @@ on:
     types:
       - sde-deployment-request
 
-  push:
-    branches:
-      - "feature/**"
-      - "bugfix/**"
-      - "hotfix/**"
-      - "chore/**"
-      - "docs/**"
-      - ci-cd-branch
+  # push:
+  #   branches:
+  #     - "feature/**"
+  #     - "bugfix/**"
+  #     - "hotfix/**"
+  #     - "chore/**"
+  #     - "feat/**"
+  #     - "docs/**"
+  #     - ci-cd-branch
 
   workflow_dispatch:
     inputs:
@@ -143,33 +144,40 @@ jobs:
           if [[ "$EVENT_NAME" == "repository_dispatch" ]]; then
             BRANCH_NAME="${{ github.event.client_payload.branch }}"
             DISPATCH_SOURCE="${{ github.event.client_payload.source }}"
-            DISPATCH_IMAGE_TAG="${{ github.event.client_payload.image_tag }}"
 
-            TARGET_ENVIRONMENT="dev-ap6"
-            COMMON_TAG="$DISPATCH_IMAGE_TAG"
-            BACKEND_TAG="$DISPATCH_IMAGE_TAG"
-            FRONTEND_TAG="$DISPATCH_IMAGE_TAG"
-          else
+            TARGET_ENVIRONMENT="${{ github.event.client_payload.environment }}"
+            COMMON_TAG="${{ github.event.client_payload.image_tag }}"
+            BACKEND_TAG="${{ github.event.client_payload.backend_image_tag }}"
+            FRONTEND_TAG="${{ github.event.client_payload.frontend_image_tag }}"
+
+            # Developer Preview defaults to AP6.
+            if [[ -z "$TARGET_ENVIRONMENT" ]]; then
+              TARGET_ENVIRONMENT="dev-ap6"
+            fi
+
+          elif [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
             BRANCH_NAME="${{ github.ref_name }}"
             DISPATCH_SOURCE=""
-            DISPATCH_IMAGE_TAG=""
 
             TARGET_ENVIRONMENT="${{ github.event.inputs.environment }}"
             COMMON_TAG="${{ github.event.inputs.image_tag }}"
+            BACKEND_TAG="${{ github.event.inputs.backend_image_tag }}"
+            FRONTEND_TAG="${{ github.event.inputs.frontend_image_tag }}"
 
+            # Manual run defaults to the current Helm Git SHA.
             if [[ -z "$COMMON_TAG" ]]; then
               COMMON_TAG="${{ github.sha }}"
             fi
 
-            BACKEND_TAG="${{ github.event.inputs.backend_image_tag }}"
-            FRONTEND_TAG="${{ github.event.inputs.frontend_image_tag }}"
-          fi
+          else
+            BRANCH_NAME="${{ github.ref_name }}"
+            DISPATCH_SOURCE=""
 
-          echo "Event: $EVENT_NAME"
-          echo "Application branch: $BRANCH_NAME"
-          echo "Dispatch source: $DISPATCH_SOURCE"
-          echo "Dispatch image tag: $DISPATCH_IMAGE_TAG"
-          echo "Target environment: $TARGET_ENVIRONMENT"
+            TARGET_ENVIRONMENT="dev-ap6"
+            COMMON_TAG=""
+            BACKEND_TAG=""
+            FRONTEND_TAG=""
+          fi
 
           # Component tags override the common image tag.
           if [[ -z "$BACKEND_TAG" ]]; then
@@ -179,6 +187,14 @@ jobs:
           if [[ -z "$FRONTEND_TAG" ]]; then
             FRONTEND_TAG="$COMMON_TAG"
           fi
+
+          echo "Event: $EVENT_NAME"
+          echo "Application branch: $BRANCH_NAME"
+          echo "Dispatch source: $DISPATCH_SOURCE"
+          echo "Target environment: $TARGET_ENVIRONMENT"
+          echo "Common image tag: $COMMON_TAG"
+          echo "Backend image tag: $BACKEND_TAG"
+          echo "Frontend image tag: $FRONTEND_TAG"
 
           # Docker tag:
           # feature/new-ui -> feature-new-ui
@@ -211,18 +227,33 @@ jobs:
           SAFE_BRANCH="${DNS_BRANCH}-${BRANCH_HASH}"
 
           # ---------------------------------------------------------
-          # Automatic developer preview.
+          # Manual developer preview.
+          #
+          # Starts from:
+          #   - repository_dispatch sent by a manual frontend/backend run
+          #   - workflow_dispatch started manually in this Helm repository
           # ---------------------------------------------------------
-          if [[ "$EVENT_NAME" == "push" ||
-                "$EVENT_NAME" == "repository_dispatch" ]]; then
+          if [[
+                (
+                  "$EVENT_NAME" == "repository_dispatch" &&
+                  "$TARGET_ENVIRONMENT" == "dev-ap6"
+                ) ||
+                (
+                  "$EVENT_NAME" == "workflow_dispatch" &&
+                  "$TARGET_ENVIRONMENT" == "dev-ap6" &&
+                  "$BRANCH_NAME" != "develop"
+                )
+              ]]; then
+
             if [[ "$BRANCH_NAME" != "ci-cd-branch" &&
                   "$BRANCH_NAME" != feature/* &&
+                  "$BRANCH_NAME" != feat/* &&
                   "$BRANCH_NAME" != bugfix/* &&
                   "$BRANCH_NAME" != hotfix/* &&
                   "$BRANCH_NAME" != chore/* &&
                   "$BRANCH_NAME" != docs/* ]]; then
 
-              echo "Automatic preview is not allowed from: $BRANCH_NAME"
+              echo "Developer Preview is not allowed from: $BRANCH_NAME"
               exit 1
             fi
 
@@ -230,16 +261,11 @@ jobs:
             VALUES_FILE="$DEV_VALUES_FILE"
             TEMPLATE_FILE=".github/argocd/sde-preview-app.yaml"
 
-            # Matching tags must already exist in both source repos.
             if [[ "$EVENT_NAME" == "repository_dispatch" ]]; then
-              BACKEND_TAG="$DISPATCH_IMAGE_TAG"
-              FRONTEND_TAG="$DISPATCH_IMAGE_TAG"
-
-              # repository_dispatch runs from the Helm repository default branch.
+              # Use the Helm CI/CD testing branch for dispatched preview runs.
               TARGET_BRANCH="ci-cd-branch"
             else
-              BACKEND_TAG="$BRANCH_TAG"
-              FRONTEND_TAG="$BRANCH_TAG"
+              # Direct manual Helm run uses the selected Helm branch.
               TARGET_BRANCH="$BRANCH_NAME"
             fi
 
@@ -325,10 +351,18 @@ jobs:
             echo "Invalid branch/environment combination"
             echo
             echo "Allowed deployments:"
-            echo "  push feature/**, bugfix/**, hotfix/**, chore/**, docs/**"
+            echo "  manual dev-ap6 from feature/**, feat/**, bugfix/**, hotfix/**, chore/**, docs/** or ci-cd-branch"
             echo "  develop + dev-ap6"
             echo "  develop + staging"
             echo "  release/** + prod"
+            exit 1
+          fi
+
+          if [[ -z "$BACKEND_TAG" || -z "$FRONTEND_TAG" ]]; then
+            echo "Unable to resolve backend or frontend image tag"
+            echo "Common tag: $COMMON_TAG"
+            echo "Backend tag: $BACKEND_TAG"
+            echo "Frontend tag: $FRONTEND_TAG"
             exit 1
           fi
 
