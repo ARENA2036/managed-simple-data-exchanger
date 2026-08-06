@@ -46,7 +46,8 @@ backend:
   # Overrides the image tag whose default is the chart appVersion.
     tag: latest
 
-  imagePullSecrets: []
+  imagePullSecrets:
+    - name: registry-creds
 
   nameOverride: ""
 
@@ -229,7 +230,8 @@ frontend:
     pullPolicy: Always
       # Overrides the image tag whose default is the chart appVersion.
     tag: latest
-  imagePullSecrets: []
+  imagePullSecrets:
+    - name: registry-creds
   nameOverride: ""
   fullnameOverride: ""
   portContainer: 8080
