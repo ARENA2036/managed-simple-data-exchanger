@@ -341,7 +341,7 @@ frontend:
 
   configuration:
     properties: |-
-      REACT_APP_API_URL=https://sde-backend.staging.arena2036.app/api
+      REACT_APP_API_URL=https://sde-backend.staging.arena2036-x.de/api
       REACT_APP_KEYCLOAK_URL=https://centralidp.staging.arena2036-x.de/auth
       REACT_APP_KEYCLOAK_REALM=CX-Central
       REACT_APP_CLIENT_ID=CX-SDE
