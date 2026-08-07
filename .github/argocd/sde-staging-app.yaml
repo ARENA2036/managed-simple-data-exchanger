@@ -18,7 +18,7 @@ spec:
 
   source:
     repoURL: https://github.com/ARENA2036/managed-simple-data-exchanger.git
-    targetRevision: ci-cd-branch
+    targetRevision: develop
     path: charts/simpledataexchanger
 
     helm:

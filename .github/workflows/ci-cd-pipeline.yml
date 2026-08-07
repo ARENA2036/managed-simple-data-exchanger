@@ -711,6 +711,7 @@ jobs:
           VAULT_ADDR: ${{ secrets.VAULT_ADDR_PROD }}
           VAULT_TOKEN: ${{ secrets.VAULT_TOKEN_PROD }}
           DEPLOYMENT_TYPE: ${{ needs.resolve-deployment.outputs.deployment_type }}
+
         shell: bash
         run: |
           set -euo pipefail
@@ -731,6 +732,9 @@ jobs:
               ;;
           esac
 
+          echo "Deployment type: $DEPLOYMENT_TYPE"
+          echo "Vault path: $VAULT_SECRET_PATH"
+
           mkdir -p "$HOME/.kube"
 
           vault kv get \
@@ -740,7 +744,42 @@ jobs:
 
           chmod 600 "$HOME/.kube/config"
 
+          if [[ ! -s "$HOME/.kube/config" ]]; then
+            echo "Kubeconfig is empty"
+            exit 1
+          fi
+
+          echo "Current context:"
           kubectl config current-context
+
+          echo "Configured users:"
+          kubectl config get-users
+
+          CURRENT_USER="$(kubectl config view \
+            --minify \
+            -o jsonpath='{.contexts[0].context.user}')"
+
+          if [[ -z "$CURRENT_USER" ]]; then
+            echo "No Kubernetes user is configured in kubeconfig"
+            exit 1
+          fi
+
+          echo "Current Kubernetes user: $CURRENT_USER"
+
+          echo "Testing Kubernetes authentication..."
+
+          if ! kubectl auth can-i get namespaces >/dev/null 2>&1; then
+            echo "Kubernetes authentication failed"
+            echo
+            echo "The kubeconfig stored in:"
+            echo "$VAULT_SECRET_PATH"
+            echo
+            echo "does not contain valid cluster credentials."
+            exit 1
+          fi
+
+          echo "Kubernetes authentication succeeded"
+
           kubectl cluster-info
 
       - name: Create Harbor registry secret
@@ -748,6 +787,7 @@ jobs:
           HBR_USERNAME: ${{ secrets.HBR_USERNAME }}
           HBR_PASSWORD: ${{ secrets.HBR_PASSWORD }}
           TARGET_NAMESPACE: ${{ needs.resolve-deployment.outputs.namespace }}
+
         shell: bash
         run: |
           set -euo pipefail
