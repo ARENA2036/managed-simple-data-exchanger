@@ -674,13 +674,10 @@ jobs:
           git push origin "HEAD:${TARGET_BRANCH}"
 
   # =================================================================
-  # Create target namespace and Harbor image pull secret.
-  #
-  # If the namespace does not exist, create it first.
-  # Then create/update registry-creds in that namespace.
+  # Create Harbor image pull secret in the target application cluster.
   # =================================================================
   create-registry-secret:
-    name: Create Namespace and Harbor Image Pull Secret
+    name: Create Harbor Image Pull Secret
     needs:
       - resolve-deployment
       - update-image-tag
@@ -709,13 +706,6 @@ jobs:
           chmod +x vault
           sudo mv vault /usr/local/bin/vault
 
-      # -------------------------------------------------------------
-      # Select and connect to the target application cluster.
-      #
-      # Preview / Shared Dev -> arenax-ap6
-      # Staging             -> arenax-staging
-      # Production          -> arenax-prod
-      # -------------------------------------------------------------
       - name: Connect to target cluster
         env:
           VAULT_ADDR: ${{ secrets.VAULT_ADDR_PROD }}
@@ -729,19 +719,13 @@ jobs:
           case "$DEPLOYMENT_TYPE" in
             preview|shared-dev)
               VAULT_SECRET_PATH="staging/infra/cluster-int"
-              EXPECTED_CLUSTER="arenax-ap6"
               ;;
-
             staging)
               VAULT_SECRET_PATH="staging/infra/cluster-staging"
-              EXPECTED_CLUSTER="arenax-staging"
               ;;
-
             production)
               VAULT_SECRET_PATH="staging/infra/cluster-prod"
-              EXPECTED_CLUSTER="arenax-prod"
               ;;
-
             *)
               echo "Unsupported deployment type: $DEPLOYMENT_TYPE"
               exit 1
@@ -749,7 +733,6 @@ jobs:
           esac
 
           echo "Deployment type: $DEPLOYMENT_TYPE"
-          echo "Expected target cluster: $EXPECTED_CLUSTER"
           echo "Vault path: $VAULT_SECRET_PATH"
 
           mkdir -p "$HOME/.kube"
@@ -777,7 +760,7 @@ jobs:
             -o jsonpath='{.contexts[0].context.user}')"
 
           if [[ -z "$CURRENT_USER" ]]; then
-            echo "No Kubernetes user is configured"
+            echo "No Kubernetes user is configured in kubeconfig"
             exit 1
           fi
 
@@ -788,8 +771,10 @@ jobs:
           if ! kubectl auth can-i get namespaces >/dev/null 2>&1; then
             echo "Kubernetes authentication failed"
             echo
-            echo "Check kubeconfig stored in:"
+            echo "The kubeconfig stored in:"
             echo "$VAULT_SECRET_PATH"
+            echo
+            echo "does not contain valid cluster credentials."
             exit 1
           fi
 
@@ -797,44 +782,6 @@ jobs:
 
           kubectl cluster-info
 
-      # -------------------------------------------------------------
-      # Create namespace only when it does not already exist.
-      # -------------------------------------------------------------
-      - name: Create target namespace if missing
-        env:
-          TARGET_NAMESPACE: ${{ needs.resolve-deployment.outputs.namespace }}
-
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          if [[ -z "$TARGET_NAMESPACE" ]]; then
-            echo "Target namespace is empty"
-            exit 1
-          fi
-
-          echo "Target namespace: $TARGET_NAMESPACE"
-
-          if kubectl get namespace "$TARGET_NAMESPACE" >/dev/null 2>&1; then
-
-            echo "Namespace already exists:"
-            echo "$TARGET_NAMESPACE"
-
-          else
-
-            echo "Namespace does not exist"
-            echo "Creating namespace: $TARGET_NAMESPACE"
-
-            kubectl create namespace "$TARGET_NAMESPACE"
-
-            echo "Namespace created successfully"
-          fi
-
-          kubectl get namespace "$TARGET_NAMESPACE"
-
-      # -------------------------------------------------------------
-      # Create or update Harbor image pull secret.
-      # -------------------------------------------------------------
       - name: Create Harbor registry secret
         env:
           HBR_USERNAME: ${{ secrets.HBR_USERNAME }}
@@ -855,8 +802,10 @@ jobs:
             exit 1
           fi
 
-          echo "Creating Harbor image pull secret"
-          echo "Namespace: $TARGET_NAMESPACE"
+          kubectl create namespace "$TARGET_NAMESPACE" \
+            --dry-run=client \
+            -o yaml |
+          kubectl apply -f -
 
           kubectl create secret docker-registry registry-creds \
             --docker-server="harbor-hub-shared.arena.3ascloud.de" \
@@ -866,8 +815,6 @@ jobs:
             --dry-run=client \
             -o yaml |
           kubectl apply -f -
-
-          echo "Harbor image pull secret created"
 
           kubectl get secret registry-creds \
             --namespace="$TARGET_NAMESPACE"
