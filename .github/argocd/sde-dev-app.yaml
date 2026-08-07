@@ -22,7 +22,7 @@ spec:
     path: charts/simpledataexchanger
 
     helm:
-      releaseName: sde
+      releaseName: sde-dev
 
       valueFiles:
         - values-dev.yaml
