@@ -218,8 +218,8 @@ jobs:
 
           SAFE_BRANCH="${DNS_BRANCH}-${BRANCH_HASH}"
 
-          BACKEND_HOST="${SAFE_BRANCH}-backend.txcd.arena2036.app"
-          FRONTEND_HOST="${SAFE_BRANCH}.txcd.arena2036.app"
+          BACKEND_HOST="sde-${SAFE_BRANCH}-backend.txcd.arena2036.app"
+          FRONTEND_HOST="sde-${SAFE_BRANCH}.txcd.arena2036.app"
 
           # ---------------------------------------------------------
           # Manual developer preview.
