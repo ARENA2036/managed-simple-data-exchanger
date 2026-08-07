@@ -37,7 +37,7 @@ spec:
           forceString: true
 
   destination:
-    name: arenax-ap6
+    name: arenax-staging
     namespace: simple-data-exchanger
 
   syncPolicy:
