@@ -28,14 +28,17 @@ on:
     branches: ["main"]
   schedule:
     - cron: "0 0 * * *" # Once a day
+
+  workflow_call:
+
   workflow_dispatch:
 
 permissions:
-  actions: read
+  # actions: read
   contents: read
-  security-events: write
-  id-token: write
-  issues: write
+  # security-events: write
+  # id-token: write
+  # issues: write
 
 jobs:
   ScanSecrets:

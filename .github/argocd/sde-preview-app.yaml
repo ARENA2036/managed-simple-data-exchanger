@@ -1,0 +1,131 @@
+###############################################################
+# Tractus-X - EDC Management Console
+#
+# Copyright (c) 2026 ARENA2036 e.V.
+# Copyright (c) 2026 Contributors to the Eclipse Foundation
+#
+# See the NOTICE file(s) distributed with this work for additional
+# information regarding copyright ownership.
+#
+# This program and the accompanying materials are made available under the
+# terms of the Apache License, Version 2.0 which is available at
+# https://www.apache.org/licenses/LICENSE-2.0.
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+# WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+# License for the specific language governing permissions and limitations
+# under the License.
+#
+# SPDX-License-Identifier: Apache-2.0
+###############################################################
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+
+metadata:
+  name: REPLACE_APPLICATION
+  namespace: argocd
+
+  labels:
+    app.kubernetes.io/name: sde
+    app.kubernetes.io/component: developer-preview
+    app.kubernetes.io/managed-by: github-actions
+
+  annotations:
+    preview.sde/branch: REPLACE_HELM_BRANCH
+
+spec:
+  project: simple-data-exchanger
+
+  source:
+    repoURL: https://github.com/ARENA2036/managed-simple-data-exchanger.git
+    targetRevision: REPLACE_HELM_BRANCH
+    path: charts/simpledataexchanger
+
+    helm:
+      releaseName: REPLACE_RELEASE_NAME
+
+      valueFiles:
+        - values-dev.yaml
+
+      parameters:
+        # Unique resource names
+        - name: backend.fullnameOverride
+          value: REPLACE_RELEASE_NAME-backend
+          forceString: true
+
+        - name: frontend.fullnameOverride
+          value: REPLACE_RELEASE_NAME-frontend
+          forceString: true
+
+        # Docker image tags
+        - name: backend.image.tag
+          value: REPLACE_BACKEND_TAG
+          forceString: true
+
+        - name: frontend.image.tag
+          value: REPLACE_FRONTEND_TAG
+          forceString: true
+
+        # Backend ingress
+        - name: backend.ingresses[0].enabled
+          value: "true"
+
+        - name: backend.ingresses[0].className
+          value: nginx
+          forceString: true
+
+        - name: backend.ingresses[0].hostname
+          value: REPLACE_BACKEND_HOST
+          forceString: true
+
+        - name: backend.ingresses[0].tls.enabled
+          value: "true"
+
+        - name: backend.ingresses[0].tls.secretName
+          value: REPLACE_RELEASE_NAME-backend-tls
+          forceString: true
+
+        - name: backend.ingresses[0].certManager.clusterIssuer
+          value: letsencrypt-int
+          forceString: true
+
+        # Frontend ingress
+        - name: frontend.ingresses[0].enabled
+          value: "true"
+
+        - name: frontend.ingresses[0].className
+          value: nginx
+          forceString: true
+
+        - name: frontend.ingresses[0].hostname
+          value: REPLACE_FRONTEND_HOST
+          forceString: true
+
+        - name: frontend.ingresses[0].tls.enabled
+          value: "true"
+
+        - name: frontend.ingresses[0].tls.secretName
+          value: REPLACE_RELEASE_NAME-frontend-tls
+          forceString: true
+
+        - name: frontend.ingresses[0].certManager.clusterIssuer
+          value: letsencrypt-int
+          forceString: true
+
+  destination:
+    name: arenax-ap6
+    namespace: REPLACE_NAMESPACE
+
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+
+    syncOptions:
+      - CreateNamespace=true
+      - Replace=true
+      - PruneLast=true
+
+  revisionHistoryLimit: 3

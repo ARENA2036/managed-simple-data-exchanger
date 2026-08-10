@@ -1,0 +1,74 @@
+###############################################################
+# Tractus-X - EDC Management Console
+#
+# Copyright (c) 2026 ARENA2036 e.V.
+# Copyright (c) 2026 Contributors to the Eclipse Foundation
+#
+# See the NOTICE file(s) distributed with this work for additional
+# information regarding copyright ownership.
+#
+# This program and the accompanying materials are made available under the
+# terms of the Apache License, Version 2.0 which is available at
+# https://www.apache.org/licenses/LICENSE-2.0.
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+# WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+# License for the specific language governing permissions and limitations
+# under the License.
+#
+# SPDX-License-Identifier: Apache-2.0
+###############################################################
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+
+metadata:
+  name: sde-application-prod
+  namespace: argocd
+
+  labels:
+    app.kubernetes.io/name: sde
+    app.kubernetes.io/component: production
+    app.kubernetes.io/managed-by: github-actions
+
+  annotations:
+    environment.sde/type: production
+
+spec:
+  project: simple-data-exchanger
+
+  source:
+    repoURL: https://github.com/ARENA2036/managed-simple-data-exchanger.git
+    targetRevision: REPLACE_BRANCH
+    path: charts/simpledataexchanger
+
+    helm:
+      releaseName: sde-prod
+
+      valueFiles:
+        - values-prod.yaml
+
+      parameters:
+        - name: backend.image.tag
+          value: REPLACE_BACKEND_TAG
+          forceString: true
+
+        - name: frontend.image.tag
+          value: REPLACE_FRONTEND_TAG
+          forceString: true
+
+  destination:
+    name: arenax-prod
+    namespace: simple-data-exchanger
+
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+
+    syncOptions:
+      - CreateNamespace=true
+      - PruneLast=true
+
+  revisionHistoryLimit: 3
