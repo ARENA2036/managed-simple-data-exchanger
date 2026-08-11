@@ -3,39 +3,34 @@
 ```mermaid
 flowchart LR
 
+subgraph CI["CI - Backend Repo"]
+
 A[Developer]
-
 A --> B[Workflow Dispatch]
-
-B --> C[Check Dependencies]
-
+B --> C[Dependency Check]
 C --> D[CodeQL]
-
 D --> E[Secret Scan]
-
 E --> F[KICS]
+F --> G[Create Image Tag]
+G --> H[Build Backend Image]
+H --> I[Verify Image<br/>in Harbor]
+I --> J[Trivy Scan]
 
-F --> G[Create Backend Docker Image Tag]
+end
 
-G --> H[Build Backend Docker Image]
+subgraph CD["CD - Helm Repo"]
 
-H --> I[Verify Backend Image in Harbor Registry]
-
-I --> J[Scan Backend Image with Trivy]
-
-J --> K[Send Deployment Request to Helm Repository]
-
+K[Send Deployment<br/>Request]
 K --> L[Repository Dispatch]
-
-L --> M[Helm Chart Repository]
-
-M --> N[Deploy Developer Preview via Argo CD]
-
+L --> M[Helm Chart Repo]
+M --> N[Deploy Preview<br/>via Argo CD]
 N --> O[Int-AP6 Cluster]
+O --> P[Developer Preview]
 
-O --> P[Developer Preview Environment]
+end
+
+J --> K
 ```
-
 ---
 
 ## Purpose
