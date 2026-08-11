@@ -20,7 +20,6 @@
 ################################################################################
 # backend for SDE
 replicaCount: 1
-
 sdepostgresql:
   # -- PostgreSQL chart configuration
   # Switch to enable or disable the PostgreSQL helm chart
@@ -38,26 +37,19 @@ sdepostgresql:
     database: "sdedb"
     port: 5432
     existingSecret: ""
-
 backend:
   image:
     repository: harbor-hub-shared.arena.3ascloud.de/arena2036/managed-simple-data-exchanger-backend
     pullPolicy: Always
-  # Overrides the image tag whose default is the chart appVersion.
-    tag: latest
-
+    # Overrides the image tag whose default is the chart appVersion.
+    tag: B-test
   imagePullSecrets:
     - name: registry-creds
-
   nameOverride: ""
-
   fullnameOverride: ""
   portContainer: 8080
-
   podAnnotations: {}
-
   podSecurityContext: {}
-
   securityContext:
     allowPrivilegeEscalation: false
     capabilities:
@@ -65,23 +57,21 @@ backend:
         - ALL
     runAsNonRoot: true
     runAsUser: 1001
-
   service:
     type: ClusterIP
     port: 7070
     targetPort: 8080
-
   backend:
     endpoints:
-    ## Default api exposing health checks etc
+      ## Default api exposing health checks etc
       default:
-    # -- The network port, which the "default" api is going to be exposed by the container, pod and service
+        # -- The network port, which the "default" api is going to be exposed by the container, pod and service
         port: 7070
-    # -- The path mapping the "default" api is going to be exposed at
+        # -- The path mapping the "default" api is going to be exposed at
         path: /
-      # api:
-      #   port: "8080"
-      #   path: /api
+        # api:
+        #   port: "8080"
+        #   path: /api
   ingresses:
     - enabled: true
       className: nginx
@@ -103,21 +93,19 @@ backend:
         # issuer: ""
         # -- If preset enables certificate generation via cert-manager cluster-wide issuer
         clusterIssuer: "letsencrypt-int"
-      # hosts:
-      #   - chart-example.local
-
+        # hosts:
+        #   - chart-example.local
   resources:
-  # We usually recommend not to specify default resources and to leave this as a conscious
-  # choice for the user. This also increases chances charts run on environments with little
-  # resources, such as Minikube. If you do want to specify resources, uncomment the following
-  # lines, adjust them as necessary, and remove the curly braces after 'resources:'.
+    # We usually recommend not to specify default resources and to leave this as a conscious
+    # choice for the user. This also increases chances charts run on environments with little
+    # resources, such as Minikube. If you do want to specify resources, uncomment the following
+    # lines, adjust them as necessary, and remove the curly braces after 'resources:'.
     limits:
       cpu: 600m
       memory: 2Gi
     requests:
       cpu: 600m
       memory: 2Gi
-
   autoscaling:
     enabled: false
     minReplicas: 1
@@ -126,141 +114,15 @@ backend:
   # targetMemoryUtilizationPercentage: 80
 
   nodeSelector: {}
-
   tolerations: []
-
   affinity: {}
-
   configuration:
-    properties: |-
-      keycloak.clientid=SDE-2
-      spring.security.oauth2.resourceserver.jwt.issuer-uri=https://centralidp.txcd.arena2036-x.de/auth/realms/CX-Central
-      # Enable multipart uploads
-      spring.servlet.multipart.enabled=true
-      spring.main.allow-bean-definition-overriding=true
-      spring.jackson.mapper.accept-case-insensitive-enums=true
-      # Threshold after which files are written to disk.
-      spring.servlet.multipart.file-size-threshold=2KB   
-      # Max file size.
-      spring.servlet.multipart.max-file-size=200MB
-      # Max Request Size
-      spring.servlet.multipart.max-request-size=215MB
-      server.servlet.context-path=/api
-      ## Flyway
-      spring.flyway.baseline-on-migrate=true
-      spring.flyway.locations=classpath:/flyway
-      ## Database
-      spring.datasource.driver-class-name=org.postgresql.Driver
-      spring.jpa.hibernate.ddl-auto=update
-      #spring.jpa.hibernate.ddl-auto=create
-      spring.datasource.url=jdbc:postgresql://localhost:5432/sdedb
-      spring.datasource.username=postgres
-      spring.datasource.password=admin
-      spring.jpa.open-in-view=false
-      ## File Storage Properties
-      file.upload-dir=./temp/
-      ## Logging
-      logging.pattern.console=%d{yyyy-MM-dd HH:mm:ss} - %-5level - [%logger{36}] - %msg%n
-      logging.level.root=DEBUG
-      logging.level.org.springframework.web=WARN
-      logging.level.org.apache.http=DEBUG
-      logging.level.sun.rmi=WARN
-      logging.level.javax.management.remote.rmi=WARN
-      logging.level.com.zaxxer.hikari=WARN
-      logging.level.org.springframework.cloud.openfeign=DEBUG
-      #feign.client.config.digitalTwinsFeignClient.loggerLevel=DEBUG
-      ## Digital Twins
-      digital-twins.hostname=https://connector-2-dtr.txcd.arena2036.app/semantics/registry
-      digital-twins.registry.uri=/api/v3
-      digital-twins.registry.lookup.uri=/api/v3
-      digital-twins.authentication.enable=false
-      #digital-twins.authentication.url=https://centralidp.arena2036-x.de/auth/realms/CX-Central/protocol/openid-connect/token
-      digital-twins.authentication.url=https://centralidp.txcd.arena2036-x.de/auth/realms/CX-Central/protocol/openid-connect/token
-      digital-twins.authentication.clientId=satest01
-      digital-twins.authentication.clientSecret=UbfW4CR1xH4OskkovqJ2JzcwnQIrG7oj
-      digital-twins.authentication.grantType=client_credentials
-      digital-twins.authentication.scope=
-      #General EDC Configutation
-      edc.version.major=0
-      edc.version.minor=11
-      edc.version.nano=1
-      edc.asset.prop.common.version=3.0
-      ## EDC Provider
-      edc.hostname=https://connector-2-controlplane.txcd.arena2036.app
-      edc.managementpath=/management
-      edc.apiKeyHeader=X-Api-Key
-      edc.apiKey=CONNECTOR2
-      edc.dsp.endpointpath=/api/v1/dsp
-      edc.dataplane.hostname=https://connector-2-dataplane.txcd.arena2036.app
-      edc.dataplane.endpointpath=/api/public
-      edc.managementpath.apiversion=/v3
-      edc.managementpath.apiversion.asset=/v3
-      ## needs to be empty because cx-policy context is causing issues
-      edc.policy.prefix=https://w3id.org/catenax/2025/9/policy/
-      ## EDC Consumer
-      edc.consumer.hostname=https://connector-3-controlplane.txcd.arena2036.app
-      edc.consumer.apikeyheader=X-Api-Key
-      edc.consumer.apikey=CONNECTOR3
-      ##edc.consumer.managementpath=/data/v2
-      edc.consumer.managementpath=/management
-      edc.consumer.protocol.path=/api/v1/dsp
-      ## Submodel data source configuration for EDC
-      ##rename to submodel.datasource.external
-      submodel.datasource.enable=true
-      submodel.datasource.hostname=https://connector-2-submodelserver.txcd.arena2036.app
-      submodel.datasource.authentication.enable=false
-      submodel.datasource.clientId=sa-cl22-01
-      submodel.datasource.clientSecret=changeme
-      submodel.datasource.grantType=client_credentials
-      #EDR Configuration
-      edr.retry.count=5
-      edr.retry.time=1500
-      edr.refresh.auto=true
-      edr.refresh.enable=false
-      ## Manufacturer Id
-      manufacturerId=BPNL00000000052O
-      ##Partner Pool Api Host
-      partner.pool.hostname=default
-      partner.pool.authentication.url=default
-      partner.pool.clientId=default
-      partner.pool.clientSecret=default
-      partner.pool.grantType=client_credentials
-      #BPDM
-      bpdm.provider.edc.dsp.api=https://connector-2-controlplane.txcd.arena2036.app
-      bpdm.provider.bpnl=BPNL00000000052O
-      #bpdm.provider.edc.public.api==
-      ## Portal backend and Connector discovery
-      portal.backend.hostname=https://portal-backend.txcd.arena2036-x.de
-      portal.backend.authentication.url=https://centralidp.txcd.arena2036-x.de/auth/realms/CX-Central/protocol/openid-connect/token
-      portal.backend.clientId=satest01
-      portal.backend.clientSecret=UbfW4CR1xH4OskkovqJ2JzcwnQIrG7oj
-      portal.backend.grantType=client_credentials
-      ## bpn & discovery finder
-      bpndiscovery.hostname=https://semantics.txcd.arena2036-x.de/bpndiscovery/api/v1.0
-      discovery.authentication.url=https://centralidp.txcd.arena2036-x.de/auth/realms/CX-Central/protocol/openid-connect/token
-      discovery.clientId=sa-cl22-01
-      discovery.clientSecret=changeme
-      discovery.grantType=client_credentials
-      # policy-hub config
-      policy.hub.hostname=https://policyhub.txcd.arena2036-x.de/api
-      policy.hub.authentication.url=https://centralidp.txcd.arena2036-x.de/auth/realms/CX-Central/protocol/openid-connect/token
-      policy.hub.clientId=satest01
-      policy.hub.clientSecret=UbfW4CR1xH4OskkovqJ2JzcwnQIrG7oj
-      policy.hub.grantType=client_credentials
-      management.endpoints.web.exposure.include=*
-      management.endpoint.health.show-details=always
-      management.metrics.export.prometheus.enabled=true
-      management.endpoint.prometheus.enabled=true
-      spring.sleuth.sampler.probability=1.0
-      spring.zipkin.base-url=http://localhost:9411/
-      spring.zipkin.sender.type=web
-      spring.application.name=springboot-monitoring-SDE
-
+    properties: "keycloak.clientid=SDE-2\nspring.security.oauth2.resourceserver.jwt.issuer-uri=https://centralidp.txcd.arena2036-x.de/auth/realms/CX-Central\n# Enable multipart uploads\nspring.servlet.multipart.enabled=true\nspring.main.allow-bean-definition-overriding=true\nspring.jackson.mapper.accept-case-insensitive-enums=true\n# Threshold after which files are written to disk.\nspring.servlet.multipart.file-size-threshold=2KB   \n# Max file size.\nspring.servlet.multipart.max-file-size=200MB\n# Max Request Size\nspring.servlet.multipart.max-request-size=215MB\nserver.servlet.context-path=/api\n## Flyway\nspring.flyway.baseline-on-migrate=true\nspring.flyway.locations=classpath:/flyway\n## Database\nspring.datasource.driver-class-name=org.postgresql.Driver\nspring.jpa.hibernate.ddl-auto=update\n#spring.jpa.hibernate.ddl-auto=create\nspring.datasource.url=jdbc:postgresql://localhost:5432/sdedb\nspring.datasource.username=postgres\nspring.datasource.password=admin\nspring.jpa.open-in-view=false\n## File Storage Properties\nfile.upload-dir=./temp/\n## Logging\nlogging.pattern.console=%d{yyyy-MM-dd HH:mm:ss} - %-5level - [%logger{36}] - %msg%n\nlogging.level.root=DEBUG\nlogging.level.org.springframework.web=WARN\nlogging.level.org.apache.http=DEBUG\nlogging.level.sun.rmi=WARN\nlogging.level.javax.management.remote.rmi=WARN\nlogging.level.com.zaxxer.hikari=WARN\nlogging.level.org.springframework.cloud.openfeign=DEBUG\n#feign.client.config.digitalTwinsFeignClient.loggerLevel=DEBUG\n## Digital Twins\ndigital-twins.hostname=https://connector-2-dtr.txcd.arena2036.app/semantics/registry\ndigital-twins.registry.uri=/api/v3\ndigital-twins.registry.lookup.uri=/api/v3\ndigital-twins.authentication.enable=false\n#digital-twins.authentication.url=https://centralidp.arena2036-x.de/auth/realms/CX-Central/protocol/openid-connect/token\ndigital-twins.authentication.url=https://centralidp.txcd.arena2036-x.de/auth/realms/CX-Central/protocol/openid-connect/token\ndigital-twins.authentication.clientId=satest01\ndigital-twins.authentication.clientSecret=UbfW4CR1xH4OskkovqJ2JzcwnQIrG7oj\ndigital-twins.authentication.grantType=client_credentials\ndigital-twins.authentication.scope=\n#General EDC Configutation\nedc.version.major=0\nedc.version.minor=11\nedc.version.nano=1\nedc.asset.prop.common.version=3.0\n## EDC Provider\nedc.hostname=https://connector-2-controlplane.txcd.arena2036.app\nedc.managementpath=/management\nedc.apiKeyHeader=X-Api-Key\nedc.apiKey=CONNECTOR2\nedc.dsp.endpointpath=/api/v1/dsp\nedc.dataplane.hostname=https://connector-2-dataplane.txcd.arena2036.app\nedc.dataplane.endpointpath=/api/public\nedc.managementpath.apiversion=/v3\nedc.managementpath.apiversion.asset=/v3\n## needs to be empty because cx-policy context is causing issues\nedc.policy.prefix=https://w3id.org/catenax/2025/9/policy/\n## EDC Consumer\nedc.consumer.hostname=https://connector-3-controlplane.txcd.arena2036.app\nedc.consumer.apikeyheader=X-Api-Key\nedc.consumer.apikey=CONNECTOR3\n##edc.consumer.managementpath=/data/v2\nedc.consumer.managementpath=/management\nedc.consumer.protocol.path=/api/v1/dsp\n## Submodel data source configuration for EDC\n##rename to submodel.datasource.external\nsubmodel.datasource.enable=true\nsubmodel.datasource.hostname=https://connector-2-submodelserver.txcd.arena2036.app\nsubmodel.datasource.authentication.enable=false\nsubmodel.datasource.clientId=sa-cl22-01\nsubmodel.datasource.clientSecret=changeme\nsubmodel.datasource.grantType=client_credentials\n#EDR Configuration\nedr.retry.count=5\nedr.retry.time=1500\nedr.refresh.auto=true\nedr.refresh.enable=false\n## Manufacturer Id\nmanufacturerId=BPNL00000000052O\n##Partner Pool Api Host\npartner.pool.hostname=default\npartner.pool.authentication.url=default\npartner.pool.clientId=default\npartner.pool.clientSecret=default\npartner.pool.grantType=client_credentials\n#BPDM\nbpdm.provider.edc.dsp.api=https://connector-2-controlplane.txcd.arena2036.app\nbpdm.provider.bpnl=BPNL00000000052O\n#bpdm.provider.edc.public.api==\n## Portal backend and Connector discovery\nportal.backend.hostname=https://portal-backend.txcd.arena2036-x.de\nportal.backend.authentication.url=https://centralidp.txcd.arena2036-x.de/auth/realms/CX-Central/protocol/openid-connect/token\nportal.backend.clientId=satest01\nportal.backend.clientSecret=UbfW4CR1xH4OskkovqJ2JzcwnQIrG7oj\nportal.backend.grantType=client_credentials\n## bpn & discovery finder\nbpndiscovery.hostname=https://semantics.txcd.arena2036-x.de/bpndiscovery/api/v1.0\ndiscovery.authentication.url=https://centralidp.txcd.arena2036-x.de/auth/realms/CX-Central/protocol/openid-connect/token\ndiscovery.clientId=sa-cl22-01\ndiscovery.clientSecret=changeme\ndiscovery.grantType=client_credentials\n# policy-hub config\npolicy.hub.hostname=https://policyhub.txcd.arena2036-x.de/api\npolicy.hub.authentication.url=https://centralidp.txcd.arena2036-x.de/auth/realms/CX-Central/protocol/openid-connect/token\npolicy.hub.clientId=satest01\npolicy.hub.clientSecret=UbfW4CR1xH4OskkovqJ2JzcwnQIrG7oj\npolicy.hub.grantType=client_credentials\nmanagement.endpoints.web.exposure.include=*\nmanagement.endpoint.health.show-details=always\nmanagement.metrics.export.prometheus.enabled=true\nmanagement.endpoint.prometheus.enabled=true\nspring.sleuth.sampler.probability=1.0\nspring.zipkin.base-url=http://localhost:9411/\nspring.zipkin.sender.type=web\nspring.application.name=springboot-monitoring-SDE"
 frontend:
   image:
     repository: harbor-hub-shared.arena.3ascloud.de/arena2036/managed-simple-data-exchanger-frontend
     pullPolicy: Always
-      # Overrides the image tag whose default is the chart appVersion.
+    # Overrides the image tag whose default is the chart appVersion.
     tag: latest
   imagePullSecrets:
     - name: registry-creds
@@ -268,9 +130,7 @@ frontend:
   fullnameOverride: ""
   portContainer: 8080
   podAnnotations: {}
-
   podSecurityContext: {}
-
   securityContext:
     allowPrivilegeEscalation: false
     capabilities:
@@ -278,19 +138,17 @@ frontend:
         - ALL
     runAsNonRoot: true
     runAsUser: 101
-
   service:
     type: ClusterIP
     port: 80
     targetPort: 8080
-
   sde:
     endpoints:
-        ## Default api exposing health checks etc
+      ## Default api exposing health checks etc
       default:
-          # -- The network port, which the "default" api is going to be exposed by the container, pod and service
+        # -- The network port, which the "default" api is going to be exposed by the container, pod and service
         port: "80"
-          # -- The path mapping the "default" api is going to be exposed at
+        # -- The path mapping the "default" api is going to be exposed at
         path: /
   ingresses:
     - enabled: true
@@ -307,25 +165,23 @@ frontend:
       tls:
         enabled: true
         secretName: "sde-frontend-tls"
-          # -- If present overwrites the default secret name
+        # -- If present overwrites the default secret name
       certManager:
         # -- If preset enables certificate generation via cert-manager namespace scoped issuer
         # issuer: ""
-          # -- If preset enables certificate generation via cert-manager cluster-wide issuer
+        # -- If preset enables certificate generation via cert-manager cluster-wide issuer
         clusterIssuer: "letsencrypt-int"
-
   resources:
-  # We usually recommend not to specify default resources and to leave this as a conscious
-  # choice for the user. This also increases chances charts run on environments with little
-  # resources, such as Minikube. If you do want to specify resources, uncomment the following
-  # lines, adjust them as necessary, and remove the curly braces after 'resources:'.
+    # We usually recommend not to specify default resources and to leave this as a conscious
+    # choice for the user. This also increases chances charts run on environments with little
+    # resources, such as Minikube. If you do want to specify resources, uncomment the following
+    # lines, adjust them as necessary, and remove the curly braces after 'resources:'.
     limits:
       cpu: 600m
       memory: 2Gi
     requests:
       cpu: 600m
       memory: 2Gi
-
   autoscaling:
     enabled: false
     minReplicas: 1
@@ -334,11 +190,8 @@ frontend:
   # targetMemoryUtilizationPercentage: 80
 
   nodeSelector: {}
-
   tolerations: []
-
   affinity: {}
-
   configuration:
     properties: |-
       REACT_APP_API_URL=https://sde-backend.txcd.arena2036.app/api
@@ -347,12 +200,11 @@ frontend:
       REACT_APP_CLIENT_ID=CX-SDE
       REACT_APP_FILESIZE=104857600
       REACT_APP_DEFAULT_COMPANY_BPN=BPNL000000000065
-
 serviceAccount:
   # Specifies whether a service account should be created
   create: true
-    # Annotations to add to the service account
+  # Annotations to add to the service account
   annotations: {}
-    # The name of the service account to use.
-    # If not set and create is true, a name is generated using the fullname template
+  # The name of the service account to use.
+  # If not set and create is true, a name is generated using the fullname template
   name: ""
