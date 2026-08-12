@@ -52,9 +52,10 @@ spec:
       # Preview-specific structured overrides.
       # values-dev.yaml stays unchanged.
       valuesObject:
-        configuration:
-          properties: |-
-            REACT_APP_API_URL=https://REPLACE_BACKEND_HOST/api
+        frontend:
+          configuration:
+            properties: |-
+              REACT_APP_API_URL=https://REPLACE_BACKEND_HOST/api
 
       parameters:
         # Unique resource names
