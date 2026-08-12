@@ -19,19 +19,18 @@ I --> J[Scan Backend Image<br/>with Trivy]
 end
 
 subgraph CD["CD - Helm Repo"]
-
-K[Send Deployment<br/>Request]
-K --> L[Repository Dispatch]
-L --> M[Helm Chart Repo]
-M --> N[Deploy Preview<br/>via Argo CD]
-N --> O[Int-AP6 Cluster]
-O --> P[Developer Preview]
+I[Send Deployment<br/>Request]
+I --> K[Repository Dispatch]
+K --> L[Helm Chart Repo]
+L --> M[Deploy Preview<br/>via Argo CD]
+M --> N[Int-AP6 Cluster]
+N --> O[Developer Preview]
 
 end
 
-J --> K
 ```
 ---
+
 
 ## Purpose
 
@@ -62,11 +61,10 @@ After the image passes all quality and security checks, it sends a deployment re
 2. CodeQL
 3. Secret Scan
 4. KICS
-5. Create Backend Docker Image Tag
-6. Build Backend Docker Image
-7. Verify Backend Image in Harbor Registry
-8. Scan Backend Image with Trivy
-9. Send Deployment Request to Helm Repository
+5. Build Backend Docker Image
+6. Verify Backend Image in Harbor Registry
+7. Scan Backend Image with Trivy
+8. Send Deployment Request to Helm Repository
 
 ---
 
