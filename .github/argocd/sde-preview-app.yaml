@@ -49,14 +49,6 @@ spec:
       valueFiles:
         - values-dev.yaml
 
-      # Preview-specific structured overrides.
-      # values-dev.yaml stays unchanged.
-      valuesObject:
-        frontend:
-          configuration:
-            properties: |-
-              REACT_APP_API_URL=https://REPLACE_BACKEND_HOST/api
-
       parameters:
         # Unique resource names
         - name: backend.fullnameOverride
@@ -74,6 +66,12 @@ spec:
 
         - name: frontend.image.tag
           value: REPLACE_FRONTEND_TAG
+          forceString: true
+
+        # Developer Preview backend API URL.
+        # Shared Dev keeps the default value from values-dev.yaml.
+        - name: frontend.apiUrl
+          value: https://REPLACE_BACKEND_HOST/api
           forceString: true
 
         # Backend ingress
