@@ -11,25 +11,22 @@ B --> C[Dependency Check]
 C --> D[CodeQL]
 D --> E[Secret Scan]
 E --> F[KICS]
-F --> G[Create Image Tag]
-G --> H[Build Frontend Image]
-H --> I[Verify Image<br/>in Harbor]
-I --> J[Trivy Scan]
+F --> G[Build Frontend Image]
+G --> H[Verify Image<br/>in Harbor]
+H --> I[Trivy Scan]
 
 end
 
 subgraph CD["CD - Helm Repo"]
-
-K[Send Deployment<br/>Request]
-K --> L[Repository Dispatch]
-L --> M[Helm Chart Repo]
-M --> N[Deploy Preview<br/>via Argo CD]
-N --> O[Int-AP6 Cluster]
-O --> P[Developer Preview]
+I[Send Deployment<br/>Request]
+I --> K[Repository Dispatch]
+K --> L[Helm Chart Repo]
+L --> M[Deploy Preview<br/>via Argo CD]
+M --> N[Int-AP6 Cluster]
+N --> O[Developer Preview]
 
 end
 
-J --> K
 ```
 ---
 
@@ -64,11 +61,10 @@ The workflow performs the following steps.
 2. CodeQL
 3. Secret Scan
 4. KICS
-5. Create Frontend Docker Image Tag
-6. Build Frontend Docker Image
-7. Verify Frontend Image in Harbor Registry
-8. Scan Frontend Image with Trivy
-9. Send Deployment Request to Helm Repository
+5. Build Frontend Docker Image
+6. Verify Frontend Image in Harbor Registry
+7. Scan Frontend Image with Trivy
+8. Send Deployment Request to Helm Repository
 
 ---
 
