@@ -11,9 +11,10 @@ B --> C[Dependency Check]
 C --> D[CodeQL]
 D --> E[Secret Scan]
 E --> F[KICS]
-F --> G[Build Frontend Image]
-G --> H[Verify Image<br/>in Harbor]
-H --> I[Trivy Scan]
+F --> G[Create Frontend Docker Image Tag]
+G --> H[Build Frontend Docker Image]
+H --> I[Verify Frontend Image<br/>in Harbor Registry]
+I --> J[Scan Frontend Image<br/>with Trivy]
 
 end
 

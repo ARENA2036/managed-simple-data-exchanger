@@ -410,7 +410,7 @@ flowchart TB
 |---|---|---|---|
 | **Frontend Repository** | Frontend CI | Yes | No – sends deployment request |
 | **Backend Repository** | Backend CI | Yes | No – sends deployment request |
-| **Helm Chart Repository** | Deployment / CI-CD | No | Yes |
+| **Helm Chart Repository** | Deployment / CI/CD | No | Yes |
 
 ---
 

@@ -99,7 +99,7 @@ permissions:
   issues: write
 
 concurrency:
-  group: sde-deployment-${{ github.event.client_payload.branch || github.ref_name }}
+  group: sde-deployment-${{ github.event_name == 'repository_dispatch' && 'ci-cd-branch' || github.ref_name }}
   cancel-in-progress: false
 
 env:
@@ -570,9 +570,9 @@ jobs:
         run: |
           set -euo pipefail
 
+          YQ_VERSION="4.44.3"
           sudo wget -qO /usr/local/bin/yq \
-            https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
-
+            "https://github.com/mikefarah/yq/releases/download/v${YQ_VERSION}/yq_linux_amd64"
           sudo chmod +x /usr/local/bin/yq
           yq --version
 
