@@ -4,30 +4,58 @@
 flowchart LR
 
 subgraph CI["CI - Backend Repo"]
+direction TB
 
 A[Developer]
-A --> B[Workflow Dispatch]
-B --> C[Dependency Check]
-C --> D[CodeQL]
-D --> E[Secret Scan]
-E --> F[KICS]
-F --> G[Build Backend Image]
-G --> H[Verify Image<br/>in Harbor]
-H --> I[Trivy Scan]
+B[Workflow Dispatch]
+C[Check Dependencies]
+D[CodeQL]
+E[Secret Scan]
+F[KICS]
+H[Build Backend<br/>Docker Image]
+I[Push Backend Image<br/>to Harbor]
+J[Verify Backend Image<br/>in Harbor]
+K[Trivy Image Scan]
+
+A --> B
+
+B --> C
+B --> D
+B --> E
+B --> F
+
+C --> H
+D --> H
+E --> H
+F --> H
+
+H --> I
+I --> J
+J --> K
 
 end
 
-subgraph CD["CD - Helm Repo"]
-I[Send Deployment<br/>Request]
-I --> K[Repository Dispatch]
-K --> L[Helm Chart Repo]
-L --> M[Deploy Preview<br/>via Argo CD]
-M --> N[Int-AP6 Cluster]
-N --> O[Developer Preview]
+subgraph CD["CD - Helm Chart Repo"]
+direction TB
+
+L[Send Deployment<br/>Request]
+M[Repository Dispatch]
+N[Helm Chart Repo]
+O[Deploy Preview<br/>via Argo CD]
+P[Int-AP6 Cluster]
+Q[Developer Preview<br/>Unique Argo CD App<br/>Unique Namespace]
+
+L --> M
+M --> N
+N --> O
+O --> P
+P --> Q
 
 end
 
+K --> L
 ```
+
 ---
 
 

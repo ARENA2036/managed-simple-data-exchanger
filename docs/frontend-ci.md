@@ -4,28 +4,56 @@
 flowchart LR
 
 subgraph CI["CI - Frontend Repo"]
+direction TB
 
 A[Developer]
-A --> B[Workflow Dispatch]
-B --> C[Dependency Check]
-C --> D[CodeQL]
-D --> E[Secret Scan]
-E --> F[KICS]
-F --> G[Build Frontend Image]
-G --> H[Verify Image<br/>in Harbor]
-H --> I[Trivy Scan]
+B[Workflow Dispatch]
+C[Check Dependencies]
+D[CodeQL]
+E[Secret Scan]
+F[KICS]
+G[Build Frontend<br/>Docker Image]
+H[Push Frontend Image<br/>to Harbor]
+I[Verify Frontend Image<br/>in Harbor]
+J[Trivy Image Scan]
+
+A --> B
+
+B --> C
+B --> D
+B --> E
+B --> F
+
+C --> G
+D --> G
+E --> G
+F --> G
+
+G --> H
+H --> I
+I --> J
 
 end
 
-subgraph CD["CD - Helm Repo"]
-I[Send Deployment<br/>Request]
-I --> K[Repository Dispatch]
-K --> L[Helm Chart Repo]
-L --> M[Deploy Preview<br/>via Argo CD]
-M --> N[Int-AP6 Cluster]
-N --> O[Developer Preview]
+subgraph CD["CD - Helm Chart Repo"]
+direction TB
+
+K[Send Deployment<br/>Request]
+L[Repository Dispatch]
+M[Helm Chart Repo]
+N[Deploy Preview<br/>via Argo CD]
+O[Int-AP6 Cluster]
+P[Developer Preview<br/>Unique Argo CD App<br/>Unique Namespace]
+
+K --> L
+L --> M
+M --> N
+N --> O
+O --> P
 
 end
+
+J --> K
 
 ```
 ---
@@ -89,3 +117,4 @@ Repository Dispatch
 
 Helm Chart Repository
 ```
+
