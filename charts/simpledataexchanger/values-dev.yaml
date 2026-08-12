@@ -257,7 +257,6 @@ backend:
       spring.application.name=springboot-monitoring-SDE
 
 frontend:
-  apiUrl: https://sde-backend.txcd.arena2036.app/api
   image:
     repository: harbor-hub-shared.arena.3ascloud.de/arena2036/managed-simple-data-exchanger-frontend
     pullPolicy: Always

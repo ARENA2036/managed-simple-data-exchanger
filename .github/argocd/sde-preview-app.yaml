@@ -48,6 +48,19 @@ spec:
 
       valueFiles:
         - values-dev.yaml
+        
+      # Developer Preview backend API URL.
+      # Shared Dev keeps the default value from values-dev.yaml.
+      valuesObject:
+        frontend:
+          configuration:
+            properties: |-
+              REACT_APP_API_URL=https://REPLACE_BACKEND_HOST/api
+              REACT_APP_KEYCLOAK_URL=https://centralidp.txcd.arena2036-x.de/auth
+              REACT_APP_KEYCLOAK_REALM=CX-Central
+              REACT_APP_CLIENT_ID=CX-SDE
+              REACT_APP_FILESIZE=104857600
+              REACT_APP_DEFAULT_COMPANY_BPN=BPNL000000000065
 
       parameters:
         # Unique resource names
@@ -67,13 +80,7 @@ spec:
         - name: frontend.image.tag
           value: REPLACE_FRONTEND_TAG
           forceString: true
-
-        # Developer Preview backend API URL.
-        # Shared Dev keeps the default value from values-dev.yaml.
-        - name: frontend.apiUrl
-          value: https://REPLACE_BACKEND_HOST/api
-          forceString: true
-
+          
         # Backend ingress
         - name: backend.ingresses[0].enabled
           value: "true"
